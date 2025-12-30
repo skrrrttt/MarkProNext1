@@ -1,9 +1,15 @@
 import { createBrowserClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database';
 import { env } from '@/lib/env';
 
-export type TypedSupabaseClient = SupabaseClient<Database>;
+// Create a properly typed client once to infer the type
+const _client = createBrowserClient<Database>(
+  env.NEXT_PUBLIC_SUPABASE_URL || '',
+  env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+);
+
+// Use the inferred type from the actual client
+export type TypedSupabaseClient = typeof _client;
 
 // Singleton for client-side to avoid multiple instances
 let clientInstance: TypedSupabaseClient | null = null;
@@ -17,7 +23,7 @@ export function getSupabaseClient(): TypedSupabaseClient {
     clientInstance = createBrowserClient<Database>(
       env.NEXT_PUBLIC_SUPABASE_URL,
       env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ) as TypedSupabaseClient;
+    );
   }
   return clientInstance;
 }
@@ -29,5 +35,5 @@ export const createClient = (): TypedSupabaseClient => {
   return createBrowserClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  ) as TypedSupabaseClient;
+  );
 };
