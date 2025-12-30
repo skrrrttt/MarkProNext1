@@ -1,4 +1,4 @@
-import { createServerClient } from '@supabase/ssr';
+import { createServerClient, SupabaseClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/database';
 import { env } from '@/lib/env';
@@ -7,7 +7,7 @@ import { env } from '@/lib/env';
  * Server-side Supabase client for App Router
  * Use this in Server Components, Server Actions, and Route Handlers
  */
-export async function createClient() {
+export async function createClient(): Promise<SupabaseClient<Database>> {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
