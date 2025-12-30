@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Database } from '@/types/database';
 import { Building2, Users, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -77,8 +76,7 @@ export default function AdminSettingsPage() {
   // Stage handlers
   const handleToggleStageVisibility = async (id: string, currentValue: boolean) => {
     const supabase = getSupabaseClient();
-    const updates: Database['public']['Tables']['job_stages']['Update'] = { is_field_visible: !currentValue };
-    const { error } = await supabase.from('job_stages').update(updates).eq('id', id);
+    const { error } = await supabase.from('job_stages').update({ is_field_visible: !currentValue }).eq('id', id);
     if (error) toast.error('Failed to update'); else mutateStages();
   };
 

@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Database } from '@/types/database';
 import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, DollarSign, User, Phone, Mail, Flag, Plus, ClipboardList, CheckSquare, Square } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -58,8 +57,7 @@ export default function AdminJobDetailPage() {
 
   const handleStageChange = async (newStageId: string) => {
     const supabase = getSupabaseClient();
-    const updates: Database['public']['Tables']['jobs']['Update'] = { stage_id: newStageId };
-    const { error } = await supabase.from('jobs').update(updates).eq('id', jobId);
+    const { error } = await supabase.from('jobs').update({ stage_id: newStageId }).eq('id', jobId);
     if (error) toast.error('Failed to update stage');
     else { toast.success('Stage updated'); mutate(); }
   };
@@ -69,7 +67,7 @@ export default function AdminJobDetailPage() {
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
 
-    const updates: Database['public']['Tables']['jobs']['Update'] = {
+    const { error } = await supabase.from('jobs').update({
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
       customer_id: formData.get('customer_id') as string || null,
@@ -81,9 +79,7 @@ export default function AdminJobDetailPage() {
       scheduled_date: formData.get('scheduled_date') as string || null,
       quote_amount: formData.get('quote_amount') ? parseFloat(formData.get('quote_amount') as string) : null,
       internal_notes: formData.get('internal_notes') as string || null,
-    };
-
-    const { error } = await supabase.from('jobs').update(updates).eq('id', jobId);
+    }).eq('id', jobId);
     if (error) toast.error('Failed to update job');
     else { toast.success('Job updated'); setIsEditing(false); mutate(); }
   };
@@ -171,11 +167,10 @@ export default function AdminJobDetailPage() {
 
   const handleToggleChecklistItem = async (itemId: string, isChecked: boolean) => {
     const supabase = getSupabaseClient();
-    const updates: Database['public']['Tables']['job_checklist_items']['Update'] = {
+    const { error } = await supabase.from('job_checklist_items').update({
       is_checked: !isChecked,
       checked_at: !isChecked ? new Date().toISOString() : null
-    };
-    const { error } = await supabase.from('job_checklist_items').update(updates).eq('id', itemId);
+    }).eq('id', itemId);
     if (error) toast.error('Failed to update');
     else mutateJobChecklists();
   };

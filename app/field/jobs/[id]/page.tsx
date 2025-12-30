@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery, optimisticUpdate } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Database } from '@/types/database';
 import { savePhotoOffline, updateJobOffline, isOnline } from '@/lib/offline/storage';
 import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
@@ -32,11 +31,10 @@ export default function FieldJobDetailPage() {
     }, async () => {
       if (isOnline()) {
         const supabase = getSupabaseClient();
-        const updates: Database['public']['Tables']['job_checklist_items']['Update'] = {
+        await supabase.from('job_checklist_items').update({
           is_checked: newChecked,
           checked_at: newChecked ? new Date().toISOString() : null
-        };
-        await supabase.from('job_checklist_items').update(updates).eq('id', itemId);
+        }).eq('id', itemId);
       } else {
         await updateJobOffline(jobId, { checklistItemUpdate: { itemId, is_checked: newChecked } });
       }
