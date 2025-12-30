@@ -184,9 +184,8 @@ export async function savePhotoOffline(
 
 export async function getUnsyncedPhotos(): Promise<any[]> {
   const db = await getDB();
-  const tx = db.transaction('photos', 'readonly');
-  const index = tx.store.index('by-synced');
-  return index.getAll(false);
+  const allPhotos = await db.getAll('photos');
+  return allPhotos.filter((p: any) => p.synced === false);
 }
 
 export async function markPhotoSynced(id: string): Promise<void> {
@@ -200,9 +199,8 @@ export async function markPhotoSynced(id: string): Promise<void> {
 
 export async function getJobPhotos(jobId: string): Promise<any[]> {
   const db = await getDB();
-  const tx = db.transaction('photos', 'readonly');
-  const index = tx.store.index('by-job');
-  return index.getAll(jobId);
+  const allPhotos = await db.getAll('photos');
+  return allPhotos.filter((p: any) => p.jobId === jobId);
 }
 
 // ==========================================
