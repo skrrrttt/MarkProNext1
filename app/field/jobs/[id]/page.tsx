@@ -54,16 +54,43 @@ export default function FieldJobDetailPage() {
       const compressedFile = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true });
       if (isOnline()) {
         const supabase = getSupabaseClient();
-        const fileName = `${jobId}/${photoType}-${Date.now()}.jpg`;
-        await supabase.storage.from('job-photos').upload(fileName, compressedFile);
-        await supabase.from('job_photos').insert({ job_id: jobId, photo_type: photoType, storage_path: fileName });
+        const fileExt = compressedFile.type.split('/')[1] || 'jpg';
+        const fileName = `${jobId}/${photoType}-${Date.now()}.${fileExt}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage.from('job-photos').upload(fileName, compressedFile, {
+          contentType: compressedFile.type,
+          cacheControl: '3600',
+          upsert: false
+        });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error(uploadError.message);
+        }
+
+        const { error: dbError } = await supabase.from('job_photos').insert({
+          job_id: jobId,
+          photo_type: photoType,
+          storage_path: fileName
+        });
+
+        if (dbError) {
+          console.error('Database error:', dbError);
+          // Clean up uploaded file if DB insert fails
+          await supabase.storage.from('job-photos').remove([fileName]);
+          throw new Error(dbError.message);
+        }
+
         toast.success('Photo uploaded');
         mutate();
       } else {
         await savePhotoOffline(jobId, compressedFile, photoType);
         toast.success('Saved offline');
       }
-    } catch { toast.error('Upload failed'); }
+    } catch (error: any) {
+      console.error('Upload failed:', error);
+      toast.error(error?.message || 'Upload failed');
+    }
     finally { setUploadingPhoto(false); event.target.value = ''; }
   }, [jobId, mutate]);
 
@@ -100,24 +127,35 @@ export default function FieldJobDetailPage() {
   };
 
   const getPhotoUrl = (storagePath: string) => {
-    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${storagePath}`;
+    const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${storagePath}`;
+    console.log('Photo URL:', url); // Debug logging
+    return url;
   };
 
   const handleDownloadPhoto = useCallback(async (photo: any) => {
     setDownloadingPhoto(true);
     try {
       const photoUrl = getPhotoUrl(photo.storage_path);
+      console.log('Downloading from:', photoUrl);
+
       const response = await fetch(photoUrl);
-      if (!response.ok) throw new Error('Failed to fetch image');
+      console.log('Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      }
 
       const blob = await response.blob();
+      console.log('Blob type:', blob.type, 'size:', blob.size);
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
 
       // Generate filename: jobId-photoType-timestamp.jpg
       const timestamp = format(new Date(photo.created_at), 'yyyyMMdd-HHmmss');
-      a.download = `${jobId}-${photo.photo_type}-${timestamp}.jpg`;
+      const fileExt = photo.storage_path.split('.').pop() || 'jpg';
+      a.download = `${jobId}-${photo.photo_type}-${timestamp}.${fileExt}`;
 
       document.body.appendChild(a);
       a.click();
@@ -125,9 +163,9 @@ export default function FieldJobDetailPage() {
       window.URL.revokeObjectURL(url);
 
       toast.success('Photo downloaded');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Download error:', error);
-      toast.error('Failed to download photo');
+      toast.error(error?.message || 'Failed to download photo');
     } finally {
       setDownloadingPhoto(false);
     }
@@ -207,12 +245,17 @@ export default function FieldJobDetailPage() {
                         alt={getPhotoTypeLabel(photo.photo_type)}
                         className="w-full h-full object-cover"
                         loading="lazy"
-                        onError={() => setImageErrors(prev => new Set(prev).add(photo.id))}
+                        onLoad={() => console.log('Image loaded successfully:', photo.storage_path)}
+                        onError={(e) => {
+                          console.error('Image failed to load:', photo.storage_path, e);
+                          setImageErrors(prev => new Set(prev).add(photo.id));
+                        }}
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center">
                         <Camera className="w-8 h-8 text-white/20 mb-2" />
                         <p className="text-xs text-white/40">Failed to load</p>
+                        <p className="text-xs text-white/30 mt-1 px-2 text-center break-all">{photo.storage_path}</p>
                       </div>
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -298,12 +341,18 @@ export default function FieldJobDetailPage() {
                   src={getPhotoUrl(selectedPhoto.storage_path)}
                   alt={getPhotoTypeLabel(selectedPhoto.photo_type)}
                   className="w-full max-h-[70vh] object-contain"
-                  onError={() => setImageErrors(prev => new Set(prev).add(selectedPhoto.id))}
+                  onLoad={() => console.log('Modal image loaded successfully:', selectedPhoto.storage_path)}
+                  onError={(e) => {
+                    console.error('Modal image failed to load:', selectedPhoto.storage_path, e);
+                    setImageErrors(prev => new Set(prev).add(selectedPhoto.id));
+                  }}
                 />
               ) : (
-                <div className="w-full h-64 flex flex-col items-center justify-center">
+                <div className="w-full h-64 flex flex-col items-center justify-center p-4">
                   <Camera className="w-16 h-16 text-white/20 mb-4" />
-                  <p className="text-white/40">Failed to load image</p>
+                  <p className="text-white/40 mb-2">Failed to load image</p>
+                  <p className="text-xs text-white/30 break-all text-center">{selectedPhoto.storage_path}</p>
+                  <p className="text-xs text-white/20 mt-2">Check browser console for details</p>
                 </div>
               )}
             </div>
