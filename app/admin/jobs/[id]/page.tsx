@@ -278,7 +278,7 @@ export default function AdminJobDetailPage() {
 
             {(jobChecklists?.length ?? 0) > 0 ? (
               <div className="space-y-4">
-                {jobChecklists.map((checklist: any) => {
+                {jobChecklists?.map((checklist: any) => {
                   const items = checklist.items?.sort((a: any, b: any) => a.sort_order - b.sort_order) || [];
                   const completed = items.filter((i: any) => i.is_checked).length;
                   const total = items.length;
