@@ -4,39 +4,33 @@ import { useState, useMemo } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, Briefcase, X, Tag } from 'lucide-react';
+import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminCustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
 
   const { data: customers, mutate } = useSupabaseQuery('admin-customers', async (supabase) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('customers')
-      .select(`*, tags:customer_tags_junction(id, tag_id, tag:custom_tags(id, name, color)), jobs:jobs(id)`)
-      .eq('is_active', true)
+      .select('*')
       .order('name');
-    return data || [];
-  });
-
-  const { data: tags } = useSupabaseQuery('customer-tags', async (supabase) => {
-    const { data } = await supabase.from('custom_tags').select('*').eq('category', 'customer').order('name');
+    
+    if (error) console.error('Customers fetch error:', error);
     return data || [];
   });
 
   const filteredCustomers = useMemo(() => {
     if (!customers) return [];
     return customers.filter((customer: any) => {
-      const matchesSearch = !searchQuery || 
-        customer.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        customer.company?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        customer.email?.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesTag = !selectedTag || customer.tags?.some((t: any) => t.tag?.id === selectedTag);
-      return matchesSearch && matchesTag;
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return customer.name?.toLowerCase().includes(query) || 
+        customer.company?.toLowerCase().includes(query) || 
+        customer.email?.toLowerCase().includes(query);
     });
-  }, [customers, searchQuery, selectedTag]);
+  }, [customers, searchQuery]);
 
   const handleCreateCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -55,21 +49,12 @@ export default function AdminCustomersPage() {
       notes: formData.get('notes') as string || null,
     };
 
-    const { data: newCustomer, error } = await supabase.from('customers').insert(customerData).select().single();
+    const { error } = await supabase.from('customers').insert(customerData);
     
     if (error) {
-      toast.error('Failed to create customer');
+      console.error('Create error:', error);
+      toast.error('Failed to create customer: ' + error.message);
       return;
-    }
-
-    // Add selected tags
-    const selectedTagIds = formData.getAll('tags') as string[];
-    if (selectedTagIds.length > 0 && newCustomer) {
-      const tagInserts = selectedTagIds.map(tagId => ({
-        customer_id: newCustomer.id,
-        tag_id: tagId
-      }));
-      await supabase.from('customer_tags_junction').insert(tagInserts);
     }
     
     toast.success('Customer created');
@@ -82,36 +67,26 @@ export default function AdminCustomersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Customers</h1>
-          <p className="text-white/60 mt-1">{customers?.length || 0} total</p>
+          <p className="text-white/60 mt-1">{filteredCustomers.length} total</p>
         </div>
         <button onClick={() => setShowNewCustomerModal(true)} className="btn-primary">
           <Plus className="w-4 h-4" />New Customer
         </button>
       </div>
       
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-          <input type="text" placeholder="Search customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => setSelectedTag(null)} className={`btn text-sm ${!selectedTag ? 'btn-primary' : 'btn-secondary'}`}>All</button>
-          {tags?.map((tag: any) => (
-            <button 
-              key={tag.id} 
-              onClick={() => setSelectedTag(tag.id === selectedTag ? null : tag.id)} 
-              className="btn text-sm btn-secondary"
-              style={{ 
-                backgroundColor: tag.id === selectedTag ? `${tag.color}30` : undefined, 
-                color: tag.id === selectedTag ? tag.color : undefined,
-                borderColor: tag.id === selectedTag ? tag.color : undefined
-              }}
-            >
-              {tag.name}
-            </button>
-          ))}
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+        <input type="text" placeholder="Search customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10 w-full" />
       </div>
+      
+      {!customers && <div className="text-center py-12 text-white/60">Loading...</div>}
+      
+      {customers && filteredCustomers.length === 0 && (
+        <div className="card p-12 text-center">
+          <Building2 className="w-16 h-16 text-white/20 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-white mb-2">No customers found</h3>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredCustomers.map((customer: any) => (
@@ -119,7 +94,7 @@ export default function AdminCustomersPage() {
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-dark-bg flex items-center justify-center">
-                  {customer.company ? <Building2 className="w-6 h-6 text-white/40" /> : <span className="text-lg font-bold text-white/60">{customer.name.charAt(0)}</span>}
+                  {customer.company ? <Building2 className="w-6 h-6 text-white/40" /> : <span className="text-lg font-bold text-white/60">{customer.name?.charAt(0) || '?'}</span>}
                 </div>
                 <div>
                   <h3 className="font-semibold text-white">{customer.name}</h3>
@@ -128,38 +103,15 @@ export default function AdminCustomersPage() {
               </div>
               <ChevronRight className="w-5 h-5 text-white/30" />
             </div>
-            
-            <div className="space-y-2 text-sm text-white/60 mb-4">
+            <div className="space-y-2 text-sm text-white/60">
               {customer.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4" />{customer.phone}</p>}
               {customer.email && <p className="flex items-center gap-2 truncate"><Mail className="w-4 h-4" />{customer.email}</p>}
               {customer.address_city && <p className="flex items-center gap-2"><MapPin className="w-4 h-4" />{customer.address_city}, {customer.address_state}</p>}
             </div>
-            
-            <div className="flex items-center justify-between pt-3 border-t border-dark-border">
-              <div className="flex flex-wrap gap-1">
-                {customer.tags?.slice(0, 3).map((t: any) => t.tag && (
-                  <span key={t.tag.id} className="tag text-xs" style={{ backgroundColor: `${t.tag.color}20`, color: t.tag.color }}>
-                    {t.tag.name}
-                  </span>
-                ))}
-              </div>
-              <span className="flex items-center gap-1 text-xs text-white/40">
-                <Briefcase className="w-3 h-3" />{customer.jobs?.length || 0}
-              </span>
-            </div>
           </Link>
         ))}
       </div>
-      
-      {filteredCustomers.length === 0 && (
-        <div className="card p-12 text-center">
-          <Building2 className="w-16 h-16 text-white/20 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">No customers found</h3>
-          <p className="text-white/60 mb-4">Try adjusting your search or filters</p>
-        </div>
-      )}
 
-      {/* New Customer Modal */}
       {showNewCustomerModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setShowNewCustomerModal(false)}>
           <div className="bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
@@ -168,23 +120,11 @@ export default function AdminCustomersPage() {
               <button onClick={() => setShowNewCustomerModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
             </div>
             <form onSubmit={handleCreateCustomer} className="p-4 space-y-4">
-              <div>
-                <label className="label">Contact Name *</label>
-                <input type="text" name="name" required className="input" placeholder="John Smith" />
-              </div>
-              <div>
-                <label className="label">Company</label>
-                <input type="text" name="company" className="input" placeholder="ABC Corporation" />
-              </div>
+              <div><label className="label">Contact Name *</label><input type="text" name="name" required className="input" placeholder="John Smith" /></div>
+              <div><label className="label">Company</label><input type="text" name="company" className="input" placeholder="ABC Corporation" /></div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Email</label>
-                  <input type="email" name="email" className="input" placeholder="john@example.com" />
-                </div>
-                <div>
-                  <label className="label">Phone</label>
-                  <input type="tel" name="phone" className="input" placeholder="(555) 123-4567" />
-                </div>
+                <div><label className="label">Email</label><input type="email" name="email" className="input" placeholder="john@example.com" /></div>
+                <div><label className="label">Phone</label><input type="tel" name="phone" className="input" placeholder="(555) 123-4567" /></div>
               </div>
               <div>
                 <label className="label">Address</label>
@@ -195,26 +135,7 @@ export default function AdminCustomersPage() {
                   <input type="text" name="address_zip" className="input" placeholder="ZIP" />
                 </div>
               </div>
-              
-              {/* Tags Selection */}
-              {tags && tags.length > 0 && (
-                <div>
-                  <label className="label flex items-center gap-2"><Tag className="w-4 h-4" />Tags</label>
-                  <div className="flex flex-wrap gap-2">
-                    {tags.map((tag: any) => (
-                      <label key={tag.id} className="flex items-center gap-2 cursor-pointer">
-                        <input type="checkbox" name="tags" value={tag.id} className="rounded" />
-                        <span className="tag" style={{ backgroundColor: `${tag.color}20`, color: tag.color }}>{tag.name}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              
-              <div>
-                <label className="label">Notes</label>
-                <textarea name="notes" rows={3} className="input" placeholder="Any notes about this customer..." />
-              </div>
+              <div><label className="label">Notes</label><textarea name="notes" rows={3} className="input" placeholder="Any notes..." /></div>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => setShowNewCustomerModal(false)} className="btn-secondary flex-1">Cancel</button>
                 <button type="submit" className="btn-primary flex-1">Create Customer</button>
