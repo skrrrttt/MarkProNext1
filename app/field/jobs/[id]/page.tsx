@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery, optimisticUpdate } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { savePhotoOffline, updateJobOffline, isOnline } from '@/lib/offline/storage';
-import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
@@ -14,9 +14,12 @@ export default function FieldJobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const jobId = params.id as string;
-  
+
   const [expandedChecklists, setExpandedChecklists] = useState<Set<string>>(new Set(['master']));
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   const { data: job, mutate } = useSupabaseQuery(`field-job-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('jobs').select(`*, stage:job_stages(*), customer:customers(*), checklists:job_checklists(*, items:job_checklist_items(*)), photos:job_photos(*)`).eq('id', jobId).single();
@@ -63,12 +66,57 @@ export default function FieldJobDetailPage() {
     finally { setUploadingPhoto(false); event.target.value = ''; }
   }, [jobId, mutate]);
 
+  const handleDeletePhoto = useCallback(async (photo: any) => {
+    if (!confirm('Delete this photo? This cannot be undone.')) return;
+    setDeletingPhoto(true);
+    try {
+      if (isOnline()) {
+        const supabase = getSupabaseClient();
+        // Delete from storage
+        await supabase.storage.from('job-photos').remove([photo.storage_path]);
+        // Delete from database
+        await supabase.from('job_photos').delete().eq('id', photo.id);
+        toast.success('Photo deleted');
+        mutate();
+        setSelectedPhoto(null);
+      } else {
+        toast.error('Must be online to delete photos');
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete photo');
+    } finally {
+      setDeletingPhoto(false);
+    }
+  }, [mutate]);
+
   const toggleChecklist = (id: string) => setExpandedChecklists(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
   const openNavigation = () => {
     if (!job) return;
     const address = `${job.job_address_street || ''}, ${job.job_address_city || ''}, ${job.job_address_state || ''} ${job.job_address_zip || ''}`;
     window.open(`https://maps.google.com/?q=${encodeURIComponent(address)}`, '_blank');
+  };
+
+  const getPhotoUrl = (storagePath: string, width?: number) => {
+    const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${storagePath}`;
+    // Use Supabase image transformations for thumbnails
+    return width ? `${baseUrl}?width=${width}&quality=80` : baseUrl;
+  };
+
+  const getPhotoTypeLabel = (type: string) => {
+    const labels: Record<string, string> = { before: 'Before', after: 'After', progress: 'Progress', other: 'Other' };
+    return labels[type] || type;
+  };
+
+  const getPhotoTypeBadgeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      before: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      after: 'bg-green-500/20 text-green-400 border-green-500/30',
+      progress: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      other: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    };
+    return colors[type] || colors.other;
   };
 
   if (!job) return <div className="space-y-4"><div className="skeleton h-48 rounded-xl" /><div className="skeleton h-32 rounded-xl" /><div className="skeleton h-64 rounded-xl" /></div>;
@@ -111,7 +159,58 @@ export default function FieldJobDetailPage() {
         </div>
         <label className="btn-field-secondary w-full cursor-pointer"><Camera className="w-5 h-5" /><span>Progress Photo</span><input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => handlePhotoUpload(e, 'progress')} disabled={uploadingPhoto} /></label>
         {uploadingPhoto && <p className="text-center text-white/60 text-sm mt-3">Uploading...</p>}
-        {job.photos?.length > 0 && <div className="mt-4 grid grid-cols-3 gap-2">{job.photos.map((photo: any) => <div key={photo.id} className="aspect-square rounded-lg overflow-hidden bg-dark-bg"><img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${photo.storage_path}`} alt={photo.photo_type} className="w-full h-full object-cover" /></div>)}</div>}
+
+        {job.photos?.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-white/60">{job.photos.length} photo{job.photos.length !== 1 ? 's' : ''} uploaded</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {job.photos.map((photo: any) => (
+                <div key={photo.id} className="relative group">
+                  <button
+                    onClick={() => setSelectedPhoto(photo)}
+                    className="w-full aspect-square rounded-lg overflow-hidden bg-dark-bg relative"
+                  >
+                    {!imageErrors.has(photo.id) ? (
+                      <img
+                        src={getPhotoUrl(photo.storage_path, 400)}
+                        alt={getPhotoTypeLabel(photo.photo_type)}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={() => setImageErrors(prev => new Set(prev).add(photo.id))}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center">
+                        <Camera className="w-8 h-8 text-white/20 mb-2" />
+                        <p className="text-xs text-white/40">Failed to load</p>
+                      </div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute top-2 left-2">
+                      <span className={`text-xs px-2 py-1 rounded-md border ${getPhotoTypeBadgeColor(photo.photo_type)}`}>
+                        {getPhotoTypeLabel(photo.photo_type)}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ZoomIn className="w-5 h-5 text-white drop-shadow-lg" />
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePhoto(photo);
+                    }}
+                    disabled={deletingPhoto}
+                    className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                  >
+                    <Trash2 className="w-4 h-4 text-white" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -140,6 +239,66 @@ export default function FieldJobDetailPage() {
           );
         })}
       </div>
+
+      {/* Photo Viewer Modal */}
+      {selectedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setSelectedPhoto(null)}>
+          <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className={`text-sm px-3 py-1.5 rounded-lg border ${getPhotoTypeBadgeColor(selectedPhoto.photo_type)}`}>
+                  {getPhotoTypeLabel(selectedPhoto.photo_type)}
+                </span>
+                <span className="text-sm text-white/60">
+                  {format(new Date(selectedPhoto.created_at), 'MMM d, yyyy h:mm a')}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Image */}
+            <div className="relative bg-dark-bg rounded-xl overflow-hidden mb-4">
+              {!imageErrors.has(selectedPhoto.id) ? (
+                <img
+                  src={getPhotoUrl(selectedPhoto.storage_path)}
+                  alt={getPhotoTypeLabel(selectedPhoto.photo_type)}
+                  className="w-full max-h-[70vh] object-contain"
+                  onError={() => setImageErrors(prev => new Set(prev).add(selectedPhoto.id))}
+                />
+              ) : (
+                <div className="w-full h-64 flex flex-col items-center justify-center">
+                  <Camera className="w-16 h-16 text-white/20 mb-4" />
+                  <p className="text-white/40">Failed to load image</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleDeletePhoto(selectedPhoto)}
+                disabled={deletingPhoto}
+                className="flex-1 btn-field-secondary bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="w-5 h-5" />
+                {deletingPhoto ? 'Deleting...' : 'Delete Photo'}
+              </button>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="flex-1 btn-field-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
