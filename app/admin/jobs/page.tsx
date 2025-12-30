@@ -4,24 +4,26 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { Plus, Search, Filter, Calendar, List, Columns3, ChevronRight, Flag, MapPin, X, User } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, List, Columns3, ChevronRight, Flag, MapPin, X, User, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
-type ViewMode = 'pipeline' | 'list' | 'calendar';
+type ViewMode = 'pipeline' | 'list';
 
 export default function AdminJobsPage() {
-  const [viewMode, setViewMode] = useState<ViewMode>('pipeline');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewJobModal, setShowNewJobModal] = useState(false);
 
-  const { data: stages } = useSupabaseQuery('job-stages', async (supabase) => {
-    const { data } = await supabase.from('job_stages').select('*').eq('is_active', true).order('sort_order');
+  const { data: stages, isLoading: stagesLoading } = useSupabaseQuery('job-stages', async (supabase) => {
+    const { data, error } = await supabase.from('job_stages').select('*').eq('is_active', true).order('sort_order');
+    if (error) console.error('Stages error:', error);
     return data || [];
   });
 
-  const { data: jobs, mutate } = useSupabaseQuery('admin-jobs', async (supabase) => {
-    const { data } = await supabase.from('jobs').select(`*, stage:job_stages(*), customer:customers(id, name, company, phone), flags:job_flags_junction(id, flag:custom_flags(*))`).order('created_at', { ascending: false });
+  const { data: jobs, mutate, isLoading: jobsLoading } = useSupabaseQuery('admin-jobs', async (supabase) => {
+    const { data, error } = await supabase.from('jobs').select(`*, stage:job_stages(*), customer:customers(id, name, company, phone), flags:job_flags_junction(id, flag:custom_flags(*))`).order('created_at', { ascending: false });
+    if (error) console.error('Jobs error:', error);
     return data || [];
   });
 
@@ -42,7 +44,6 @@ export default function AdminJobsPage() {
     stages?.forEach((stage: any) => { 
       grouped[stage.id] = filteredJobs.filter((job: any) => job.stage_id === stage.id); 
     });
-    // Also group jobs with no stage
     grouped['none'] = filteredJobs.filter((job: any) => !job.stage_id);
     return grouped;
   }, [filteredJobs, stages]);
@@ -59,7 +60,6 @@ export default function AdminJobsPage() {
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
     
-    // Use the first stage (Lead) as default
     const defaultStageId = stageId || stages?.[0]?.id || null;
     
     const jobData = {
@@ -87,20 +87,27 @@ export default function AdminJobsPage() {
     }
   };
 
+  const isLoading = stagesLoading || jobsLoading;
+
   return (
     <div className="space-y-6">
-      {/* Header - Fixed layout */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Jobs</h1>
           <p className="text-white/60 mt-1">{jobs?.length || 0} total jobs</p>
         </div>
-        <button onClick={() => setShowNewJobModal(true)} className="btn-primary whitespace-nowrap">
-          <Plus className="w-4 h-4" />New Job
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => mutate()} className="btn-secondary">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          <button onClick={() => setShowNewJobModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4" />New Job
+          </button>
+        </div>
       </div>
 
-      {/* Toolbar - Stacked on mobile */}
+      {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
@@ -108,75 +115,84 @@ export default function AdminJobsPage() {
         </div>
         <div className="flex gap-2">
           <div className="flex items-center gap-1 bg-dark-card rounded-lg p-1">
-            <button onClick={() => setViewMode('pipeline')} className={`btn-icon ${viewMode === 'pipeline' ? 'bg-white/10 text-white' : 'text-white/40'}`}><Columns3 className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('list')} className={`btn-icon ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-white/40'}`}><List className="w-4 h-4" /></button>
-            <button onClick={() => setViewMode('calendar')} className={`btn-icon ${viewMode === 'calendar' ? 'bg-white/10 text-white' : 'text-white/40'}`}><Calendar className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('pipeline')} className={`btn-icon ${viewMode === 'pipeline' ? 'bg-white/10 text-white' : 'text-white/40'}`} title="Pipeline"><Columns3 className="w-4 h-4" /></button>
+            <button onClick={() => setViewMode('list')} className={`btn-icon ${viewMode === 'list' ? 'bg-white/10 text-white' : 'text-white/40'}`} title="List"><List className="w-4 h-4" /></button>
           </div>
-          <button className="btn-secondary"><Filter className="w-4 h-4" /><span className="hidden sm:inline">Filters</span></button>
         </div>
       </div>
 
-      {/* Pipeline View - Fixed overflow */}
-      {viewMode === 'pipeline' && (
-        <div className="overflow-x-auto -mx-4 px-4 pb-4">
-          <div className="flex gap-4 min-w-max">
-            {stages?.map((stage: any) => (
-              <div 
-                key={stage.id} 
-                className="w-72 flex-shrink-0 bg-dark-card rounded-xl p-4"
-                onDragOver={(e) => e.preventDefault()} 
-                onDrop={(e) => { const jobId = e.dataTransfer.getData('jobId'); if (jobId) handleStageChange(jobId, stage.id); }}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
-                    <h3 className="font-semibold text-white">{stage.name}</h3>
-                    <span className="text-white/40 text-sm">({jobsByStage[stage.id]?.length || 0})</span>
-                  </div>
-                  {stage.is_field_visible && <span className="text-xs text-green-400">Field</span>}
+      {isLoading && (
+        <div className="text-center py-12 text-white/60">Loading...</div>
+      )}
+
+      {/* Pipeline View - Vertical Stacking */}
+      {!isLoading && viewMode === 'pipeline' && (
+        <div className="space-y-6">
+          {stages?.map((stage: any) => (
+            <div key={stage.id} className="card p-4">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                  <h3 className="font-semibold text-white">{stage.name}</h3>
+                  <span className="text-white/40 text-sm">({jobsByStage[stage.id]?.length || 0})</span>
                 </div>
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
-                  {jobsByStage[stage.id]?.map((job: any) => (
+                {stage.is_field_visible && <span className="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded">Field Visible</span>}
+              </div>
+              
+              {jobsByStage[stage.id]?.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {jobsByStage[stage.id].map((job: any) => (
                     <Link 
                       key={job.id} 
                       href={`/admin/jobs/${job.id}`} 
-                      draggable 
-                      onDragStart={(e) => e.dataTransfer.setData('jobId', job.id)} 
-                      className="block p-3 bg-dark-bg rounded-lg hover:bg-dark-card-hover transition-colors cursor-grab active:cursor-grabbing"
+                      className="block p-3 bg-dark-bg rounded-lg hover:bg-dark-card-hover transition-colors"
                     >
-                      {job.flags?.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {job.flags.map((f: any) => f.flag && (
-                            <span key={f.id} className="tag text-xs" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
-                              <Flag className="w-3 h-3" />{f.flag.name}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <h4 className="font-medium text-white mb-1 line-clamp-2">{job.name}</h4>
-                      <p className="text-sm text-white/60 mb-2">{job.customer?.company || job.customer?.name || 'No customer'}</p>
+                      <h4 className="font-medium text-white mb-1 truncate">{job.name}</h4>
+                      <p className="text-sm text-white/60 mb-2 truncate">{job.customer?.company || job.customer?.name || 'No customer'}</p>
                       <div className="flex items-center justify-between text-xs text-white/40">
-                        {job.scheduled_date && (
+                        {job.scheduled_date ? (
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />{format(new Date(job.scheduled_date), 'MMM d')}
                           </span>
-                        )}
+                        ) : <span>Not scheduled</span>}
                         {job.quote_amount && <span className="text-green-400">${job.quote_amount.toLocaleString()}</span>}
                       </div>
                     </Link>
                   ))}
-                  {(!jobsByStage[stage.id] || jobsByStage[stage.id].length === 0) && (
-                    <div className="text-center py-8 text-white/30 text-sm">No jobs</div>
-                  )}
                 </div>
+              ) : (
+                <div className="text-center py-4 text-white/30 text-sm">No jobs in this stage</div>
+              )}
+            </div>
+          ))}
+          
+          {/* Jobs without stage */}
+          {jobsByStage['none']?.length > 0 && (
+            <div className="card p-4 border-amber-500/30">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-3 h-3 rounded-full bg-amber-500" />
+                <h3 className="font-semibold text-white">No Stage Assigned</h3>
+                <span className="text-white/40 text-sm">({jobsByStage['none'].length})</span>
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {jobsByStage['none'].map((job: any) => (
+                  <Link 
+                    key={job.id} 
+                    href={`/admin/jobs/${job.id}`} 
+                    className="block p-3 bg-dark-bg rounded-lg hover:bg-dark-card-hover transition-colors"
+                  >
+                    <h4 className="font-medium text-white mb-1 truncate">{job.name}</h4>
+                    <p className="text-sm text-white/60 truncate">{job.customer?.company || job.customer?.name || 'No customer'}</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* List View */}
-      {viewMode === 'list' && (
+      {!isLoading && viewMode === 'list' && (
         <div className="card overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -186,6 +202,7 @@ export default function AdminJobsPage() {
                   <th className="text-left p-4 text-white/60 font-medium text-sm">Customer</th>
                   <th className="text-left p-4 text-white/60 font-medium text-sm">Stage</th>
                   <th className="text-left p-4 text-white/60 font-medium text-sm">Scheduled</th>
+                  <th className="text-left p-4 text-white/60 font-medium text-sm">Amount</th>
                   <th className="p-4"></th>
                 </tr>
               </thead>
@@ -204,10 +221,11 @@ export default function AdminJobsPage() {
                       {job.stage ? (
                         <span className="badge" style={{ backgroundColor: `${job.stage.color}20`, color: job.stage.color }}>{job.stage.name}</span>
                       ) : (
-                        <span className="badge bg-white/10 text-white/40">No stage</span>
+                        <span className="badge bg-amber-500/20 text-amber-400">No stage</span>
                       )}
                     </td>
                     <td className="p-4 text-white/60">{job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : '—'}</td>
+                    <td className="p-4 text-white">{job.quote_amount ? `$${job.quote_amount.toLocaleString()}` : '—'}</td>
                     <td className="p-4"><Link href={`/admin/jobs/${job.id}`} className="btn-icon"><ChevronRight className="w-4 h-4" /></Link></td>
                   </tr>
                 ))}
@@ -217,8 +235,6 @@ export default function AdminJobsPage() {
           {filteredJobs.length === 0 && <div className="text-center py-12 text-white/40">No jobs found</div>}
         </div>
       )}
-
-      {viewMode === 'calendar' && <div className="card p-8 text-center text-white/40">Calendar view coming soon</div>}
 
       {/* New Job Modal */}
       {showNewJobModal && (
@@ -276,9 +292,9 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between p-4 border-b border-dark-border">
+        <div className="flex items-center justify-between p-4 border-b border-dark-border sticky top-0 bg-dark-card">
           <h2 className="text-lg font-semibold text-white">New Job</h2>
           <button onClick={onClose} className="btn-icon"><X className="w-5 h-5" /></button>
         </div>
@@ -288,7 +304,7 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
             <input type="text" name="name" required className="input" placeholder="e.g. Parking Lot Striping" />
           </div>
           
-          {/* Customer Search Autocomplete */}
+          {/* Customer Search */}
           <div ref={dropdownRef} className="relative">
             <label className="label">Customer</label>
             <div className="relative">
@@ -310,12 +326,7 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
             {showDropdown && filteredCustomers.length > 0 && (
               <div className="absolute z-10 w-full mt-1 bg-dark-card border border-dark-border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                 {filteredCustomers.map((customer: any) => (
-                  <button
-                    key={customer.id}
-                    type="button"
-                    onClick={() => handleSelectCustomer(customer)}
-                    className="w-full px-4 py-2 text-left hover:bg-dark-bg transition-colors flex items-center gap-3"
-                  >
+                  <button key={customer.id} type="button" onClick={() => handleSelectCustomer(customer)} className="w-full px-4 py-2 text-left hover:bg-dark-bg transition-colors flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-dark-bg flex items-center justify-center flex-shrink-0">
                       <span className="text-sm font-medium text-white/60">{customer.name.charAt(0)}</span>
                     </div>
@@ -327,22 +338,12 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
                 ))}
               </div>
             )}
-            {showDropdown && customerSearch && filteredCustomers.length === 0 && (
-              <div className="absolute z-10 w-full mt-1 bg-dark-card border border-dark-border rounded-lg shadow-lg p-4 text-center">
-                <p className="text-white/40 text-sm">No customers found</p>
-                <Link href="/admin/customers" onClick={onClose} className="text-brand-500 text-sm hover:underline">Create new customer</Link>
-              </div>
-            )}
           </div>
 
-          {/* Stage Selection */}
+          {/* Stage */}
           <div>
             <label className="label">Stage</label>
-            <select 
-              value={selectedStageId} 
-              onChange={(e) => setSelectedStageId(e.target.value)}
-              className="input"
-            >
+            <select value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)} className="input">
               {stages.map((stage: any) => (
                 <option key={stage.id} value={stage.id}>{stage.name}</option>
               ))}
@@ -353,6 +354,7 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
             <label className="label">Description</label>
             <textarea name="description" rows={3} className="input" placeholder="Job details..." />
           </div>
+          
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="label">Scheduled Date</label>
@@ -363,6 +365,7 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
               <input type="number" name="quote_amount" step="0.01" className="input" placeholder="0.00" />
             </div>
           </div>
+          
           <div>
             <label className="label">Job Address</label>
             <input type="text" name="address_street" className="input mb-2" placeholder="Street" />
@@ -372,6 +375,7 @@ function NewJobModal({ customers, stages, onClose, onSubmit }: {
               <input type="text" name="address_zip" className="input" placeholder="ZIP" />
             </div>
           </div>
+          
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" className="btn-primary flex-1">Create Job</button>
