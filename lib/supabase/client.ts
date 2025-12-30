@@ -1,20 +1,28 @@
 import { createBrowserClient } from '@supabase/ssr';
+import type { Database } from '@/types/database';
 
-// Using 'any' to avoid TypeScript strict mode issues with Supabase
-// In production, generate proper types with: npx supabase gen types typescript
+/**
+ * Get Supabase client instance (singleton)
+ * Use this in Client Components with 'use client' directive
+ */
+let browserClient: any = null;
+
+export function getSupabaseClient() {
+  if (!browserClient) {
+    browserClient = createBrowserClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return browserClient;
+}
+
+/**
+ * Create a new Supabase client instance
+ */
 export const createClient = () => {
-  return createBrowserClient<any>(
+  return createBrowserClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
-};
-
-// Singleton for client-side
-let client: ReturnType<typeof createClient> | null = null;
-
-export const getSupabaseClient = () => {
-  if (!client) {
-    client = createClient();
-  }
-  return client;
 };

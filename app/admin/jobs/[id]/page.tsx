@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, DollarSign, User, Phone, Mail, Flag, Plus, ClipboardList, CheckSquare, Square } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, DollarSign, User, Phone, Mail, Flag, Plus, ClipboardList, CheckSquare, Square, Camera, Download, ZoomIn } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -16,6 +16,10 @@ export default function AdminJobDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [showAddFlagModal, setShowAddFlagModal] = useState(false);
   const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [downloadingPhoto, setDownloadingPhoto] = useState(false);
+  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   const { data: job, mutate } = useSupabaseQuery(`admin-job-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
@@ -52,6 +56,11 @@ export default function AdminJobDetailPage() {
     return data || [];
   });
 
+  const { data: photos, mutate: mutatePhotos } = useSupabaseQuery(`job-photos-${jobId}`, async (supabase) => {
+    const { data } = await supabase.from('job_photos').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
+    return data || [];
+  });
+
   const customer = customers?.find((c: any) => c.id === job?.customer_id);
   const stage = stages?.find((s: any) => s.id === job?.stage_id);
 
@@ -67,7 +76,7 @@ export default function AdminJobDetailPage() {
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
 
-    const updates = {
+    const { error } = await supabase.from('jobs').update({
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
       customer_id: formData.get('customer_id') as string || null,
@@ -79,9 +88,7 @@ export default function AdminJobDetailPage() {
       scheduled_date: formData.get('scheduled_date') as string || null,
       quote_amount: formData.get('quote_amount') ? parseFloat(formData.get('quote_amount') as string) : null,
       internal_notes: formData.get('internal_notes') as string || null,
-    };
-
-    const { error } = await supabase.from('jobs').update(updates).eq('id', jobId);
+    }).eq('id', jobId);
     if (error) toast.error('Failed to update job');
     else { toast.success('Job updated'); setIsEditing(false); mutate(); }
   };
@@ -169,9 +176,9 @@ export default function AdminJobDetailPage() {
 
   const handleToggleChecklistItem = async (itemId: string, isChecked: boolean) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('job_checklist_items').update({ 
+    const { error } = await supabase.from('job_checklist_items').update({
       is_checked: !isChecked,
-      checked_at: !isChecked ? new Date().toISOString() : null 
+      checked_at: !isChecked ? new Date().toISOString() : null
     }).eq('id', itemId);
     if (error) toast.error('Failed to update');
     else mutateJobChecklists();
@@ -184,6 +191,78 @@ export default function AdminJobDetailPage() {
     const { error } = await supabase.from('job_checklists').delete().eq('id', checklistId);
     if (error) toast.error('Failed to remove');
     else { toast.success('Removed'); mutateJobChecklists(); }
+  };
+
+  const getPhotoUrl = (storagePath: string) => {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${storagePath}`;
+  };
+
+  const getPhotoTypeLabel = (type: string) => {
+    const labels: Record<string, string> = { before: 'Before', after: 'After', progress: 'Progress', other: 'Other' };
+    return labels[type] || type;
+  };
+
+  const getPhotoTypeBadgeColor = (type: string) => {
+    const colors: Record<string, string> = {
+      before: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      after: 'bg-green-500/20 text-green-400 border-green-500/30',
+      progress: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+      other: 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+    };
+    return colors[type] || colors.other;
+  };
+
+  const handleDownloadPhoto = async (photo: any) => {
+    setDownloadingPhoto(true);
+    try {
+      const photoUrl = getPhotoUrl(photo.storage_path);
+      const response = await fetch(photoUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      const timestamp = format(new Date(photo.created_at), 'yyyyMMdd-HHmmss');
+      const fileExt = photo.storage_path.split('.').pop() || 'jpg';
+      a.download = `${jobId}-${photo.photo_type}-${timestamp}.${fileExt}`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Photo downloaded');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast.error(error?.message || 'Failed to download photo');
+    } finally {
+      setDownloadingPhoto(false);
+    }
+  };
+
+  const handleDeletePhoto = async (photo: any) => {
+    if (!confirm('Delete this photo? This cannot be undone.')) return;
+    setDeletingPhoto(true);
+    try {
+      const supabase = getSupabaseClient();
+      // Delete from storage
+      await supabase.storage.from('job-photos').remove([photo.storage_path]);
+      // Delete from database
+      await supabase.from('job_photos').delete().eq('id', photo.id);
+      toast.success('Photo deleted');
+      mutatePhotos();
+      setSelectedPhoto(null);
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete photo');
+    } finally {
+      setDeletingPhoto(false);
+    }
   };
 
   if (!job) return <div className="text-center py-12 text-white/60">Loading...</div>;
@@ -338,6 +417,77 @@ export default function AdminJobDetailPage() {
             )}
           </div>
 
+          {/* Photos Section */}
+          <div className="card p-6">
+            <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+              <Camera className="w-5 h-5" />Job Photos
+            </h2>
+
+            {(photos?.length ?? 0) > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-white/60">{photos.length} photo{photos.length !== 1 ? 's' : ''}</p>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {photos.map((photo: any) => (
+                    <div key={photo.id} className="relative group">
+                      <button
+                        onClick={() => setSelectedPhoto(photo)}
+                        className="w-full aspect-square rounded-lg overflow-hidden bg-dark-bg relative"
+                      >
+                        {!imageErrors.has(photo.id) ? (
+                          <img
+                            src={getPhotoUrl(photo.storage_path)}
+                            alt={getPhotoTypeLabel(photo.photo_type)}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={() => setImageErrors(prev => new Set(prev).add(photo.id))}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center">
+                            <Camera className="w-8 h-8 text-white/20 mb-2" />
+                            <p className="text-xs text-white/40">Failed to load</p>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute top-2 left-2">
+                          <span className={`text-xs px-2 py-1 rounded-md border ${getPhotoTypeBadgeColor(photo.photo_type)}`}>
+                            {getPhotoTypeLabel(photo.photo_type)}
+                          </span>
+                        </div>
+                        <div className="absolute bottom-2 left-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <p className="text-xs text-white/90 drop-shadow-lg">
+                            {format(new Date(photo.created_at), 'MMM d, yyyy')}
+                          </p>
+                        </div>
+                        <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ZoomIn className="w-5 h-5 text-white drop-shadow-lg" />
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeletePhoto(photo);
+                        }}
+                        disabled={deletingPhoto}
+                        className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center shadow-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                        title="Delete photo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-white/40">
+                <Camera className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No photos uploaded yet</p>
+                <p className="text-sm mt-1">Photos will appear here once field workers upload them</p>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card p-6">
               <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><MapPin className="w-5 h-5" />Job Address</h2>
@@ -419,6 +569,77 @@ export default function AdminJobDetailPage() {
                   <Link href="/admin/settings" className="text-brand-500 text-sm">Create templates in Settings</Link>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Viewer Modal */}
+      {selectedPhoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setSelectedPhoto(null)}>
+          <div className="relative max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <span className={`text-sm px-3 py-1.5 rounded-lg border ${getPhotoTypeBadgeColor(selectedPhoto.photo_type)}`}>
+                  {getPhotoTypeLabel(selectedPhoto.photo_type)}
+                </span>
+                <span className="text-sm text-white/60">
+                  {format(new Date(selectedPhoto.created_at), 'MMM d, yyyy h:mm a')}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* Image */}
+            <div className="relative bg-dark-bg rounded-xl overflow-hidden mb-4">
+              {!imageErrors.has(selectedPhoto.id) ? (
+                <img
+                  src={getPhotoUrl(selectedPhoto.storage_path)}
+                  alt={getPhotoTypeLabel(selectedPhoto.photo_type)}
+                  className="w-full max-h-[70vh] object-contain"
+                  onError={() => setImageErrors(prev => new Set(prev).add(selectedPhoto.id))}
+                />
+              ) : (
+                <div className="w-full h-64 flex flex-col items-center justify-center p-4">
+                  <Camera className="w-16 h-16 text-white/20 mb-4" />
+                  <p className="text-white/40 mb-2">Failed to load image</p>
+                  <p className="text-xs text-white/30 break-all text-center">{selectedPhoto.storage_path}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDownloadPhoto(selectedPhoto)}
+                  disabled={downloadingPhoto}
+                  className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-5 h-5" />
+                  {downloadingPhoto ? 'Downloading...' : 'Download Full Size'}
+                </button>
+                <button
+                  onClick={() => handleDeletePhoto(selectedPhoto)}
+                  disabled={deletingPhoto}
+                  className="flex-1 btn-secondary bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  {deletingPhoto ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+              <button
+                onClick={() => setSelectedPhoto(null)}
+                className="w-full btn-secondary"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

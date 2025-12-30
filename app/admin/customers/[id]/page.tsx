@@ -24,7 +24,7 @@ export default function CustomerDetailPage() {
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
 
-    const updates = {
+    const { error } = await supabase.from('customers').update({
       name: formData.get('name') as string,
       company: formData.get('company') as string || null,
       email: formData.get('email') as string || null,
@@ -34,9 +34,7 @@ export default function CustomerDetailPage() {
       address_state: formData.get('address_state') as string || null,
       address_zip: formData.get('address_zip') as string || null,
       notes: formData.get('notes') as string || null,
-    };
-
-    const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
+    }).eq('id', customerId);
     if (error) toast.error('Failed to update');
     else { toast.success('Updated'); setIsEditing(false); mutate(); }
   };
