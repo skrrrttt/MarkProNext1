@@ -1,0 +1,37 @@
+{
+  "name": "MarkPro",
+  "short_name": "MarkPro",
+  "description": "Field Service Management for Pavement Marking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#0f0f1a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "My Jobs",
+      "url": "/field/jobs",
+      "description": "View assigned jobs"
+    },
+    {
+      "name": "Dashboard",
+      "url": "/admin/dashboard",
+      "description": "Admin dashboard"
+    }
+  ]
+}

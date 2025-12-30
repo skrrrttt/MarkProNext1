@@ -1,0 +1,231 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Custom Properties */
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-card: #1a1a2e;
+  --bg-card-hover: #252540;
+  --border-color: #2d2d44;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0b8;
+  --text-muted: #6b6b80;
+  --accent-yellow: #fbbf24;
+  --accent-blue: #3b82f6;
+  --accent-green: #22c55e;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+}
+
+/* Base Styles */
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-dark-bg text-white min-h-screen;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Field mode - prevent text selection */
+  .field-mode {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  
+  /* Allow text selection in inputs */
+  .field-mode input,
+  .field-mode textarea {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+}
+
+/* Component Styles */
+@layer components {
+  /* Touch-friendly buttons for field use */
+  .btn-field {
+    @apply min-h-[56px] px-6 py-4 rounded-xl text-lg font-semibold 
+           active:scale-[0.98] transition-all duration-150
+           flex items-center justify-center gap-3;
+  }
+  
+  .btn-field-primary {
+    @apply btn-field bg-brand-500 text-black hover:bg-brand-400;
+  }
+  
+  .btn-field-secondary {
+    @apply btn-field bg-dark-card border-2 border-dark-border 
+           text-white hover:bg-dark-card-hover;
+  }
+  
+  .btn-field-danger {
+    @apply btn-field bg-red-500/20 border-2 border-red-500/50 
+           text-red-400 hover:bg-red-500/30;
+  }
+  
+  .btn-field-success {
+    @apply btn-field bg-green-500/20 border-2 border-green-500/50 
+           text-green-400 hover:bg-green-500/30;
+  }
+  
+  /* Admin buttons */
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-all duration-150
+           flex items-center justify-center gap-2 text-sm;
+  }
+  
+  .btn-primary {
+    @apply btn bg-brand-500 text-black hover:bg-brand-400;
+  }
+  
+  .btn-secondary {
+    @apply btn bg-dark-card border border-dark-border 
+           text-white hover:bg-dark-card-hover;
+  }
+  
+  .btn-ghost {
+    @apply btn bg-transparent text-white/70 hover:bg-white/10 hover:text-white;
+  }
+  
+  .btn-icon {
+    @apply p-2 rounded-lg transition-colors hover:bg-white/10;
+  }
+  
+  /* Cards */
+  .card {
+    @apply bg-dark-card rounded-card border border-dark-border p-4;
+  }
+  
+  .card-interactive {
+    @apply card cursor-pointer hover:bg-dark-card-hover 
+           hover:border-brand-500/50 transition-all duration-200;
+  }
+  
+  /* Form inputs */
+  .input {
+    @apply w-full bg-dark-bg border border-dark-border rounded-lg 
+           px-4 py-3 text-white placeholder:text-dark-border
+           focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500
+           transition-colors;
+  }
+  
+  .input-field {
+    @apply input min-h-[56px] text-lg;
+  }
+  
+  .label {
+    @apply block text-sm font-medium text-white/70 mb-2;
+  }
+  
+  /* Checkboxes - field friendly */
+  .checkbox-field {
+    @apply w-7 h-7 rounded-lg border-2 border-dark-border bg-dark-bg
+           flex items-center justify-center cursor-pointer
+           transition-all duration-150;
+  }
+  
+  .checkbox-field.checked {
+    @apply bg-brand-500 border-brand-500;
+  }
+  
+  /* Status badges */
+  .badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+  
+  .badge-lead { @apply bg-slate-500/20 text-slate-400; }
+  .badge-pending { @apply bg-amber-500/20 text-amber-400; }
+  .badge-progress { @apply bg-purple-500/20 text-purple-400; }
+  .badge-completed { @apply bg-green-500/20 text-green-400; }
+  .badge-scheduled { @apply bg-blue-500/20 text-blue-400; }
+  
+  /* Tag pills */
+  .tag {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  /* Kanban columns */
+  .kanban-column {
+    @apply flex-shrink-0 w-80 bg-dark-card/50 rounded-xl p-4;
+  }
+  
+  /* Mobile nav */
+  .nav-field {
+    @apply fixed bottom-0 left-0 right-0 bg-dark-card border-t border-dark-border
+           flex justify-around items-center h-20 px-4 pb-safe z-50;
+  }
+  
+  .nav-field-item {
+    @apply flex flex-col items-center justify-center gap-1 p-2 rounded-xl
+           text-white/60 transition-colors min-w-[64px];
+  }
+  
+  .nav-field-item.active {
+    @apply text-brand-500 bg-brand-500/10;
+  }
+}
+
+/* Animations */
+@layer utilities {
+  .animate-in {
+    animation: animateIn 0.2s ease-out;
+  }
+  
+  @keyframes animateIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Safe area padding for mobile */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  
+  /* Scrollbar styling */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: var(--border-color);
+    border-radius: 3px;
+  }
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply bg-dark-card animate-pulse rounded;
+}
+
+/* Offline indicator */
+.offline-banner {
+  @apply fixed top-0 left-0 right-0 bg-amber-500 text-black text-center py-2 
+         text-sm font-medium z-[100];
+}
