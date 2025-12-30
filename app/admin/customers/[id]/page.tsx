@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, Building2, Phone, Mail, MapPin, Edit2, Trash2, Briefcase, Calendar, Save, X } from 'lucide-react';
+import { ArrowLeft, Building2, Phone, Mail, MapPin, Edit2, Trash2, Briefcase, Calendar, Save, X, Tag, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -14,10 +14,26 @@ export default function CustomerDetailPage() {
   const router = useRouter();
   const customerId = params.id as string;
   const [isEditing, setIsEditing] = useState(false);
+  const [showAddTagModal, setShowAddTagModal] = useState(false);
 
   const { data: customer, mutate } = useSupabaseQuery(`customer-${customerId}`, async (supabase) => {
-    const { data } = await supabase.from('customers').select(`*, tags:customer_tags_junction(tag:custom_tags(*)), jobs(id, name, scheduled_date, stage:job_stages(name, color))`).eq('id', customerId).single();
+    const { data } = await supabase
+      .from('customers')
+      .select(`*, tags:customer_tags_junction(id, tag_id, tag:custom_tags(id, name, color)), jobs:jobs(id, name, scheduled_date, stage:job_stages(name, color), customer_id)`)
+      .eq('id', customerId)
+      .single();
+    
+    // Filter jobs to only show ones for this customer
+    if (data && data.jobs) {
+      data.jobs = data.jobs.filter((job: any) => job.customer_id === customerId);
+    }
+    
     return data;
+  });
+
+  const { data: allTags } = useSupabaseQuery('all-customer-tags', async (supabase) => {
+    const { data } = await supabase.from('custom_tags').select('*').eq('category', 'customer').order('name');
+    return data || [];
   });
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -62,9 +78,45 @@ export default function CustomerDetailPage() {
     }
   };
 
+  const handleAddTag = async (tagId: string) => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('customer_tags_junction').insert({
+      customer_id: customerId,
+      tag_id: tagId
+    });
+
+    if (error) {
+      if (error.code === '23505') {
+        toast.error('Tag already added');
+      } else {
+        toast.error('Failed to add tag');
+      }
+    } else {
+      toast.success('Tag added');
+      setShowAddTagModal(false);
+      mutate();
+    }
+  };
+
+  const handleRemoveTag = async (junctionId: string) => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('customer_tags_junction').delete().eq('id', junctionId);
+
+    if (error) {
+      toast.error('Failed to remove tag');
+    } else {
+      toast.success('Tag removed');
+      mutate();
+    }
+  };
+
   if (!customer) {
     return <div className="space-y-4"><div className="skeleton h-48 rounded-xl" /><div className="skeleton h-64 rounded-xl" /></div>;
   }
+
+  // Get tags that haven't been added yet
+  const existingTagIds = customer.tags?.map((t: any) => t.tag?.id) || [];
+  const availableTags = allTags?.filter((t: any) => !existingTagIds.includes(t.id)) || [];
 
   return (
     <div className="space-y-6">
@@ -104,11 +156,36 @@ export default function CustomerDetailPage() {
             <div className="w-16 h-16 rounded-xl bg-dark-bg flex items-center justify-center">
               {customer.company ? <Building2 className="w-8 h-8 text-white/40" /> : <span className="text-2xl font-bold text-white/60">{customer.name.charAt(0)}</span>}
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-2xl font-bold text-white">{customer.name}</h1>
               {customer.company && <p className="text-white/60">{customer.company}</p>}
-              <div className="flex gap-2 mt-2">
-                {customer.tags?.map((t: any) => t.tag && <span key={t.tag.id} className="tag" style={{ backgroundColor: `${t.tag.color}20`, color: t.tag.color }}>{t.tag.name}</span>)}
+              
+              {/* Tags */}
+              <div className="flex flex-wrap gap-2 mt-3">
+                {customer.tags?.map((t: any) => t.tag && (
+                  <span 
+                    key={t.id} 
+                    className="tag flex items-center gap-1" 
+                    style={{ backgroundColor: `${t.tag.color}20`, color: t.tag.color }}
+                  >
+                    {t.tag.name}
+                    <button 
+                      onClick={() => handleRemoveTag(t.id)} 
+                      className="hover:bg-white/20 rounded p-0.5"
+                      title="Remove tag"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                {availableTags.length > 0 && (
+                  <button 
+                    onClick={() => setShowAddTagModal(true)} 
+                    className="tag bg-dark-bg text-white/60 hover:text-white hover:bg-dark-card-hover"
+                  >
+                    <Plus className="w-3 h-3" />Add Tag
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -130,14 +207,14 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
+      {/* Jobs */}
       <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-white flex items-center gap-2"><Briefcase className="w-5 h-5" />Jobs ({customer.jobs?.length || 0})</h2>
-          <Link href={`/admin/jobs?customer=${customerId}`} className="text-sm text-brand-500">View all →</Link>
         </div>
         {customer.jobs?.length > 0 ? (
           <div className="space-y-2">
-            {customer.jobs.slice(0, 5).map((job: any) => (
+            {customer.jobs.map((job: any) => (
               <Link key={job.id} href={`/admin/jobs/${job.id}`} className="flex items-center justify-between p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors">
                 <div>
                   <p className="font-medium text-white">{job.name}</p>
@@ -151,6 +228,33 @@ export default function CustomerDetailPage() {
           <p className="text-white/40 text-center py-4">No jobs yet</p>
         )}
       </div>
+
+      {/* Add Tag Modal */}
+      {showAddTagModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setShowAddTagModal(false)}>
+          <div className="bg-dark-card rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">Add Tag</h2>
+              <button onClick={() => setShowAddTagModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              {availableTags.map((tag: any) => (
+                <button
+                  key={tag.id}
+                  onClick={() => handleAddTag(tag.id)}
+                  className="w-full p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors flex items-center gap-3"
+                >
+                  <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }} />
+                  <span className="text-white">{tag.name}</span>
+                </button>
+              ))}
+              {availableTags.length === 0 && (
+                <p className="text-white/40 text-center py-4">No more tags available</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
