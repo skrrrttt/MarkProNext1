@@ -1,69 +1,14 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
-
-// Database schema for IndexedDB
-interface MarkProDB extends DBSchema {
-  jobs: {
-    key: string;
-    value: {
-      id: string;
-      data: any;
-      synced: boolean;
-      updatedAt: number;
-    };
-    indexes: { 'by-synced': boolean };
-  };
-  customers: {
-    key: string;
-    value: {
-      id: string;
-      data: any;
-      synced: boolean;
-      updatedAt: number;
-    };
-  };
-  pendingActions: {
-    key: number;
-    value: {
-      id?: number;
-      type: 'create' | 'update' | 'delete';
-      table: string;
-      data: any;
-      createdAt: number;
-    };
-    indexes: { 'by-table': string };
-  };
-  cache: {
-    key: string;
-    value: {
-      key: string;
-      data: any;
-      expiresAt: number;
-    };
-  };
-  photos: {
-    key: string;
-    value: {
-      id: string;
-      jobId: string;
-      blob: Blob;
-      type: 'before' | 'after' | 'progress' | 'other';
-      caption?: string;
-      synced: boolean;
-      createdAt: number;
-    };
-    indexes: { 'by-job': string; 'by-synced': boolean };
-  };
-}
+import { openDB, IDBPDatabase } from 'idb';
 
 const DB_NAME = 'markpro-offline';
 const DB_VERSION = 1;
 
-let dbInstance: IDBPDatabase<MarkProDB> | null = null;
+let dbInstance: IDBPDatabase | null = null;
 
-export async function getDB(): Promise<IDBPDatabase<MarkProDB>> {
+export async function getDB(): Promise<IDBPDatabase> {
   if (dbInstance) return dbInstance;
   
-  dbInstance = await openDB<MarkProDB>(DB_NAME, DB_VERSION, {
+  dbInstance = await openDB(DB_NAME, DB_VERSION, {
     upgrade(db) {
       // Jobs store
       if (!db.objectStoreNames.contains('jobs')) {
@@ -160,7 +105,7 @@ export async function queueAction(
   });
 }
 
-export async function getPendingActions(): Promise<MarkProDB['pendingActions']['value'][]> {
+export async function getPendingActions(): Promise<any[]> {
   const db = await getDB();
   return db.getAll('pendingActions');
 }
@@ -193,7 +138,7 @@ export async function getCachedJob(id: string): Promise<any | null> {
 export async function getAllCachedJobs(): Promise<any[]> {
   const db = await getDB();
   const jobs = await db.getAll('jobs');
-  return jobs.map(j => j.data);
+  return jobs.map((j: any) => j.data);
 }
 
 export async function updateJobOffline(id: string, data: any): Promise<void> {
@@ -237,9 +182,10 @@ export async function savePhotoOffline(
   return id;
 }
 
-export async function getUnsyncedPhotos(): Promise<MarkProDB['photos']['value'][]> {
+export async function getUnsyncedPhotos(): Promise<any[]> {
   const db = await getDB();
-  const index = db.transaction('photos').store.index('by-synced');
+  const tx = db.transaction('photos', 'readonly');
+  const index = tx.store.index('by-synced');
   return index.getAll(false);
 }
 
@@ -252,9 +198,10 @@ export async function markPhotoSynced(id: string): Promise<void> {
   }
 }
 
-export async function getJobPhotos(jobId: string): Promise<MarkProDB['photos']['value'][]> {
+export async function getJobPhotos(jobId: string): Promise<any[]> {
   const db = await getDB();
-  const index = db.transaction('photos').store.index('by-job');
+  const tx = db.transaction('photos', 'readonly');
+  const index = tx.store.index('by-job');
   return index.getAll(jobId);
 }
 
@@ -291,7 +238,7 @@ export async function syncPendingChanges(supabase: any): Promise<{ success: numb
         if (error) throw error;
       }
       
-      await clearPendingAction(action.id!);
+      await clearPendingAction(action.id);
       success++;
     } catch (err) {
       console.error('Sync failed for action:', action, err);
