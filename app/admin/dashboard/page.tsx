@@ -1,7 +1,7 @@
 'use client';
 
 import { useSupabaseQuery } from '@/lib/offline/swr';
-import { Briefcase, Users, DollarSign, Clock, TrendingUp, Calendar, CheckCircle2 } from 'lucide-react';
+import { Briefcase, Users, TrendingUp, Calendar, CheckCircle2, Flag } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 
@@ -21,7 +21,13 @@ export default function AdminDashboardPage() {
     return data || [];
   });
 
+  const { data: allJobFlags } = useSupabaseQuery('all-job-flags', async (supabase) => {
+    const { data } = await supabase.from('job_flags_junction').select('*, flag:custom_flags(*)');
+    return data || [];
+  });
+
   const getStage = (stageId: string) => stages?.find((s: any) => s.id === stageId);
+  const getJobFlags = (jobId: string) => allJobFlags?.filter((f: any) => f.job_id === jobId) || [];
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayJobs = jobs?.filter((j: any) => j.scheduled_date === today) || [];
@@ -64,12 +70,22 @@ export default function AdminDashboardPage() {
             <div className="space-y-3">
               {todayJobs.map((job: any) => {
                 const stage = getStage(job.stage_id);
+                const flags = getJobFlags(job.id);
                 return (
-                  <Link key={job.id} href={`/admin/jobs/${job.id}`} className="flex items-center justify-between p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors">
-                    <div>
+                  <Link key={job.id} href={`/admin/jobs/${job.id}`} className="block p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors">
+                    {flags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {flags.map((f: any) => f.flag && (
+                          <span key={f.id} className="tag text-xs" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
+                            <Flag className="w-3 h-3" />{f.flag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
                       <p className="font-medium text-white truncate">{job.name}</p>
+                      {stage && <span className="badge text-xs" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>{stage.name}</span>}
                     </div>
-                    {stage && <span className="badge" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>{stage.name}</span>}
                   </Link>
                 );
               })}
@@ -84,13 +100,25 @@ export default function AdminDashboardPage() {
           <div className="space-y-3">
             {jobs?.slice(0, 5).map((job: any) => {
               const stage = getStage(job.stage_id);
+              const flags = getJobFlags(job.id);
               return (
-                <Link key={job.id} href={`/admin/jobs/${job.id}`} className="flex items-center justify-between p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors">
-                  <div>
-                    <p className="font-medium text-white truncate">{job.name}</p>
-                    <p className="text-sm text-white/60">{job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : 'Not scheduled'}</p>
+                <Link key={job.id} href={`/admin/jobs/${job.id}`} className="block p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors">
+                  {flags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {flags.map((f: any) => f.flag && (
+                        <span key={f.id} className="tag text-xs" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
+                          <Flag className="w-3 h-3" />{f.flag.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-white truncate">{job.name}</p>
+                      <p className="text-sm text-white/60">{job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : 'Not scheduled'}</p>
+                    </div>
+                    {stage && <span className="badge text-xs" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>{stage.name}</span>}
                   </div>
-                  {stage && <span className="badge" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>{stage.name}</span>}
                 </Link>
               );
             })}
