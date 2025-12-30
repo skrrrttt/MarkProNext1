@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, Clock, DollarSign, User, Phone, Mail, Flag, Plus } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, DollarSign, User, Phone, Mail, Flag, Plus, ClipboardList, CheckSquare, Square } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -15,10 +15,10 @@ export default function AdminJobDetailPage() {
   const jobId = params.id as string;
   const [isEditing, setIsEditing] = useState(false);
   const [showAddFlagModal, setShowAddFlagModal] = useState(false);
+  const [showAddChecklistModal, setShowAddChecklistModal] = useState(false);
 
   const { data: job, mutate } = useSupabaseQuery(`admin-job-${jobId}`, async (supabase) => {
-    const { data, error } = await supabase.from('jobs').select('*').eq('id', jobId).single();
-    if (error) console.error('Job fetch error:', error);
+    const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
     return data;
   });
 
@@ -39,6 +39,16 @@ export default function AdminJobDetailPage() {
 
   const { data: jobFlags, mutate: mutateFlags } = useSupabaseQuery(`job-flags-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('job_flags_junction').select('*, flag:custom_flags(*)').eq('job_id', jobId);
+    return data || [];
+  });
+
+  const { data: checklistTemplates } = useSupabaseQuery('checklist-templates', async (supabase) => {
+    const { data } = await supabase.from('checklist_templates').select('*, items:checklist_template_items(*)').order('name');
+    return data || [];
+  });
+
+  const { data: jobChecklists, mutate: mutateJobChecklists } = useSupabaseQuery(`job-checklists-${jobId}`, async (supabase) => {
+    const { data } = await supabase.from('job_checklists').select('*, items:job_checklist_items(*)').eq('job_id', jobId);
     return data || [];
   });
 
@@ -104,10 +114,65 @@ export default function AdminJobDetailPage() {
     else { toast.success('Removed'); mutateFlags(); }
   };
 
+  const handleAddChecklist = async (templateId: string) => {
+    const supabase = getSupabaseClient();
+    const template = checklistTemplates?.find((t: any) => t.id === templateId);
+    if (!template) return;
+
+    // Create the job checklist
+    const { data: checklist, error: checklistError } = await supabase
+      .from('job_checklists')
+      .insert({ job_id: jobId, name: template.name, template_id: templateId })
+      .select()
+      .single();
+
+    if (checklistError) {
+      toast.error('Failed to add checklist');
+      return;
+    }
+
+    // Create the checklist items from template
+    if (template.items?.length > 0) {
+      const items = template.items.map((item: any) => ({
+        checklist_id: checklist.id,
+        name: item.name,
+        sort_order: item.sort_order,
+        is_checked: false,
+      }));
+      await supabase.from('job_checklist_items').insert(items);
+    }
+
+    toast.success('Checklist added');
+    setShowAddChecklistModal(false);
+    mutateJobChecklists();
+  };
+
+  const handleToggleChecklistItem = async (itemId: string, isChecked: boolean) => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('job_checklist_items').update({ 
+      is_checked: !isChecked,
+      checked_at: !isChecked ? new Date().toISOString() : null 
+    }).eq('id', itemId);
+    if (error) toast.error('Failed to update');
+    else mutateJobChecklists();
+  };
+
+  const handleDeleteJobChecklist = async (checklistId: string) => {
+    if (!confirm('Remove this checklist from the job?')) return;
+    const supabase = getSupabaseClient();
+    await supabase.from('job_checklist_items').delete().eq('checklist_id', checklistId);
+    const { error } = await supabase.from('job_checklists').delete().eq('id', checklistId);
+    if (error) toast.error('Failed to remove');
+    else { toast.success('Removed'); mutateJobChecklists(); }
+  };
+
   if (!job) return <div className="text-center py-12 text-white/60">Loading...</div>;
 
   const existingFlagIds = jobFlags?.map((f: any) => f.flag_id) || [];
   const availableFlags = allFlags?.filter((f: any) => !existingFlagIds.includes(f.id)) || [];
+
+  const existingTemplateIds = jobChecklists?.map((c: any) => c.template_id) || [];
+  const availableTemplates = checklistTemplates?.filter((t: any) => !existingTemplateIds.includes(t.id)) || [];
 
   return (
     <div className="space-y-6">
@@ -173,12 +238,7 @@ export default function AdminJobDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-white/60 text-sm">Stage:</span>
-                <select 
-                  value={job.stage_id || ''} 
-                  onChange={(e) => handleStageChange(e.target.value)} 
-                  className="input py-1.5 px-3 text-sm"
-                  style={{ backgroundColor: stage ? `${stage.color}20` : undefined, color: stage?.color }}
-                >
+                <select value={job.stage_id || ''} onChange={(e) => handleStageChange(e.target.value)} className="input py-1.5 px-3 text-sm" style={{ backgroundColor: stage ? `${stage.color}20` : undefined, color: stage?.color }}>
                   {stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -205,6 +265,57 @@ export default function AdminJobDetailPage() {
               <div><p className="text-white/40 text-sm">Scheduled</p><p className="text-white font-medium flex items-center gap-2"><Calendar className="w-4 h-4 text-white/40" />{job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : '—'}</p></div>
               <div><p className="text-white/40 text-sm">Quote</p><p className="text-white font-medium flex items-center gap-2"><DollarSign className="w-4 h-4 text-white/40" />{job.quote_amount ? `$${job.quote_amount.toLocaleString()}` : '—'}</p></div>
             </div>
+          </div>
+
+          {/* Checklists */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-white flex items-center gap-2"><ClipboardList className="w-5 h-5" />Checklists</h2>
+              {availableTemplates.length > 0 && (
+                <button onClick={() => setShowAddChecklistModal(true)} className="btn-secondary text-sm"><Plus className="w-4 h-4" />Add Checklist</button>
+              )}
+            </div>
+
+            {jobChecklists?.length > 0 ? (
+              <div className="space-y-4">
+                {jobChecklists.map((checklist: any) => {
+                  const items = checklist.items?.sort((a: any, b: any) => a.sort_order - b.sort_order) || [];
+                  const completed = items.filter((i: any) => i.is_checked).length;
+                  const total = items.length;
+                  const progress = total > 0 ? (completed / total) * 100 : 0;
+
+                  return (
+                    <div key={checklist.id} className="bg-dark-bg rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between p-3 border-b border-dark-border">
+                        <div>
+                          <h3 className="font-medium text-white">{checklist.name}</h3>
+                          <p className="text-xs text-white/40">{completed}/{total} completed</p>
+                        </div>
+                        <button onClick={() => handleDeleteJobChecklist(checklist.id)} className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                      <div className="h-1 bg-dark-border">
+                        <div className="h-full bg-green-500 transition-all" style={{ width: `${progress}%` }} />
+                      </div>
+                      <div className="p-3 space-y-2">
+                        {items.map((item: any) => (
+                          <button key={item.id} onClick={() => handleToggleChecklistItem(item.id, item.is_checked)} className="w-full flex items-center gap-3 p-2 rounded hover:bg-dark-card transition-colors text-left">
+                            {item.is_checked ? <CheckSquare className="w-5 h-5 text-green-500" /> : <Square className="w-5 h-5 text-white/30" />}
+                            <span className={item.is_checked ? 'text-white/50 line-through' : 'text-white'}>{item.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-white/40">
+                <ClipboardList className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p>No checklists assigned</p>
+                {availableTemplates.length > 0 && <p className="text-sm">Click "Add Checklist" to assign one</p>}
+                {availableTemplates.length === 0 && <p className="text-sm">Create templates in Settings → Checklists</p>}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -260,6 +371,32 @@ export default function AdminJobDetailPage() {
                 <div className="text-center py-4">
                   <p className="text-white/40 mb-2">No flags available</p>
                   <Link href="/admin/settings" className="text-brand-500 text-sm">Create flags in Settings</Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Checklist Modal */}
+      {showAddChecklistModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setShowAddChecklistModal(false)}>
+          <div className="bg-dark-card rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">Add Checklist</h2>
+              <button onClick={() => setShowAddChecklistModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              {availableTemplates.map((template: any) => (
+                <button key={template.id} onClick={() => handleAddChecklist(template.id)} className="w-full p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors text-left">
+                  <p className="text-white font-medium">{template.name}</p>
+                  <p className="text-white/40 text-sm">{template.items?.length || 0} items</p>
+                </button>
+              ))}
+              {availableTemplates.length === 0 && (
+                <div className="text-center py-4">
+                  <p className="text-white/40 mb-2">No checklist templates available</p>
+                  <Link href="/admin/settings" className="text-brand-500 text-sm">Create templates in Settings</Link>
                 </div>
               )}
             </div>
