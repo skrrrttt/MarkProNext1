@@ -119,6 +119,13 @@ export default function AdminJobDetailPage() {
     const template = checklistTemplates?.find((t: any) => t.id === templateId);
     if (!template) return;
 
+    // First, fetch the template items directly from DB to ensure we have them
+    const { data: templateItems } = await supabase
+      .from('checklist_template_items')
+      .select('*')
+      .eq('template_id', templateId)
+      .order('sort_order');
+
     // Create the job checklist
     const { data: checklist, error: checklistError } = await supabase
       .from('job_checklists')
@@ -131,15 +138,18 @@ export default function AdminJobDetailPage() {
       return;
     }
 
-    // Create the checklist items from template
-    if (template.items?.length > 0) {
-      const items = template.items.map((item: any) => ({
+    // Create the checklist items from template items
+    if (templateItems && templateItems.length > 0) {
+      const items = templateItems.map((item: any) => ({
         checklist_id: checklist.id,
         name: item.name,
-        sort_order: item.sort_order,
+        sort_order: item.sort_order || 0,
         is_checked: false,
       }));
-      await supabase.from('job_checklist_items').insert(items);
+      const { error: itemsError } = await supabase.from('job_checklist_items').insert(items);
+      if (itemsError) {
+        console.error('Failed to create checklist items:', itemsError);
+      }
     }
 
     toast.success('Checklist added');
