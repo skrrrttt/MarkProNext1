@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { Database } from '@/types/database';
 import { ArrowLeft, Building2, Phone, Mail, MapPin, Edit2, Trash2, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -24,7 +25,7 @@ export default function CustomerDetailPage() {
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
 
-    const updates = {
+    const updates: Database['public']['Tables']['customers']['Update'] = {
       name: formData.get('name') as string,
       company: formData.get('company') as string || null,
       email: formData.get('email') as string || null,
