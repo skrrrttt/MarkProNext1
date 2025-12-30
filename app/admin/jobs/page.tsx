@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { Plus, Search, Filter, Calendar, List, Columns3, ChevronRight, Flag, MapPin } from 'lucide-react';
+import { Plus, Search, Filter, Calendar, List, Columns3, ChevronRight, Flag, MapPin, X } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -13,6 +13,7 @@ type ViewMode = 'pipeline' | 'list' | 'calendar';
 export default function AdminJobsPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
+  const [showNewJobModal, setShowNewJobModal] = useState(false);
 
   const { data: stages } = useSupabaseQuery('job-stages', async (supabase) => {
     const { data } = await supabase.from('job_stages').select('*').eq('is_active', true).order('sort_order');
@@ -21,6 +22,11 @@ export default function AdminJobsPage() {
 
   const { data: jobs, mutate } = useSupabaseQuery('admin-jobs', async (supabase) => {
     const { data } = await supabase.from('jobs').select(`*, stage:job_stages(*), customer:customers(id, name, company, phone), flags:job_flags_junction(id, flag:custom_flags(*))`).order('created_at', { ascending: false });
+    return data || [];
+  });
+
+  const { data: customers } = useSupabaseQuery('customers-list', async (supabase) => {
+    const { data } = await supabase.from('customers').select('id, name, company').eq('is_active', true).order('name');
     return data || [];
   });
 
@@ -44,11 +50,40 @@ export default function AdminJobsPage() {
     if (error) { toast.error('Failed to update'); mutate(); } else { toast.success('Job moved'); }
   };
 
+  const handleCreateJob = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const supabase = getSupabaseClient();
+    
+    const jobData = {
+      name: formData.get('name') as string,
+      description: formData.get('description') as string || null,
+      customer_id: formData.get('customer_id') as string || null,
+      stage_id: stages?.[0]?.id || null,
+      job_address_street: formData.get('address_street') as string || null,
+      job_address_city: formData.get('address_city') as string || null,
+      job_address_state: formData.get('address_state') as string || null,
+      job_address_zip: formData.get('address_zip') as string || null,
+      scheduled_date: formData.get('scheduled_date') as string || null,
+      quote_amount: formData.get('quote_amount') ? parseFloat(formData.get('quote_amount') as string) : null,
+    };
+
+    const { error } = await supabase.from('jobs').insert(jobData);
+    
+    if (error) {
+      toast.error('Failed to create job');
+    } else {
+      toast.success('Job created');
+      setShowNewJobModal(false);
+      mutate();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold text-white">Jobs</h1><p className="text-white/60 mt-1">{jobs?.length || 0} total jobs</p></div>
-        <button className="btn-primary"><Plus className="w-4 h-4" />New Job</button>
+        <button onClick={() => setShowNewJobModal(true)} className="btn-primary"><Plus className="w-4 h-4" />New Job</button>
       </div>
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" /><input type="text" placeholder="Search jobs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10" /></div>
@@ -108,6 +143,58 @@ export default function AdminJobsPage() {
       )}
 
       {viewMode === 'calendar' && <div className="card p-8 text-center text-white/40">Calendar view coming soon</div>}
+
+      {/* New Job Modal */}
+      {showNewJobModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">New Job</h2>
+              <button onClick={() => setShowNewJobModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCreateJob} className="p-4 space-y-4">
+              <div>
+                <label className="label">Job Name *</label>
+                <input type="text" name="name" required className="input" placeholder="e.g. Parking Lot Striping" />
+              </div>
+              <div>
+                <label className="label">Customer</label>
+                <select name="customer_id" className="input">
+                  <option value="">Select customer...</option>
+                  {customers?.map((c: any) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Description</label>
+                <textarea name="description" rows={3} className="input" placeholder="Job details..." />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Scheduled Date</label>
+                  <input type="date" name="scheduled_date" className="input" />
+                </div>
+                <div>
+                  <label className="label">Quote Amount</label>
+                  <input type="number" name="quote_amount" step="0.01" className="input" placeholder="0.00" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Job Address</label>
+                <input type="text" name="address_street" className="input mb-2" placeholder="Street" />
+                <div className="grid grid-cols-3 gap-2">
+                  <input type="text" name="address_city" className="input" placeholder="City" />
+                  <input type="text" name="address_state" className="input" placeholder="State" />
+                  <input type="text" name="address_zip" className="input" placeholder="ZIP" />
+                </div>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setShowNewJobModal(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" className="btn-primary flex-1">Create Job</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
