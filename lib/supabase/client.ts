@@ -5,7 +5,7 @@ import type { Database } from '@/types/database';
  * Get Supabase client instance (singleton)
  * Use this in Client Components with 'use client' directive
  */
-let browserClient: ReturnType<typeof createBrowserClient<Database>> | undefined;
+let browserClient: any = null;
 
 export function getSupabaseClient() {
   if (!browserClient) {
