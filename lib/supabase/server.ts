@@ -32,3 +32,43 @@ export async function createClient() {
     }
   );
 }
+
+/**
+ * Get current user session from server
+ */
+export async function getSession() {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session;
+}
+
+/**
+ * Get current user from server
+ */
+export async function getUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
+
+/**
+ * Get user profile with role
+ */
+export async function getUserProfile() {
+  const supabase = await createClient();
+  const user = await getUser();
+
+  if (!user) return null;
+
+  const { data: profile } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single();
+
+  return profile;
+}

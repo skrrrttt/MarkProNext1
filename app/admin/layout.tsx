@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore, useUIStore } from '@/lib/store';
+import { useUIStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { LayoutDashboard, Briefcase, Users, FileText, Wrench, Settings, Menu, X, LogOut, Truck } from 'lucide-react';
 
 const navItems = [
@@ -18,20 +19,32 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, role, logout } = useAuthStore();
+  const { user, role, loading, signOut } = useAuth();
   const { sidebarOpen, toggleSidebar, setSidebarOpen } = useUIStore();
 
   useEffect(() => {
-    if (!isAuthenticated || (role !== 'admin' && role !== 'office')) {
-      router.push('/');
+    if (!loading && (!user || (role !== 'admin' && role !== 'office'))) {
+      router.push('/login');
     }
-  }, [isAuthenticated, role, router]);
+  }, [user, role, loading, router]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setSidebarOpen(false);
     }
   }, [pathname, setSidebarOpen]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
+        <div className="text-white/60">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-dark-bg flex">
@@ -61,7 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="w-9 h-9 bg-dark-bg rounded-full flex items-center justify-center"><span className="text-sm font-semibold text-white">A</span></div>
                 <div><p className="text-sm font-medium text-white">Admin</p><p className="text-xs text-white/40 capitalize">{role}</p></div>
               </div>
-              <button onClick={() => { logout(); router.push('/'); }} className="btn-icon text-white/40 hover:text-white"><LogOut className="w-5 h-5" /></button>
+              <button onClick={signOut} className="btn-icon text-white/40 hover:text-white"><LogOut className="w-5 h-5" /></button>
             </div>
           </div>
         </div>
