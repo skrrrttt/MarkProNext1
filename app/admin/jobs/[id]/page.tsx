@@ -276,7 +276,7 @@ export default function AdminJobDetailPage() {
               )}
             </div>
 
-            {jobChecklists?.length > 0 ? (
+            {(jobChecklists?.length ?? 0) > 0 ? (
               <div className="space-y-4">
                 {jobChecklists.map((checklist: any) => {
                   const items = checklist.items?.sort((a: any, b: any) => a.sort_order - b.sort_order) || [];
