@@ -1,13 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { Database } from '@/types/database';
 import { env } from '@/lib/env';
+
+export type TypedSupabaseClient = SupabaseClient<Database>;
 
 /**
  * Server-side Supabase client for App Router
  * Use this in Server Components, Server Actions, and Route Handlers
  */
-export async function createClient() {
+export async function createClient(): Promise<TypedSupabaseClient> {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -31,5 +34,5 @@ export async function createClient() {
         },
       },
     }
-  );
+  ) as TypedSupabaseClient;
 }
