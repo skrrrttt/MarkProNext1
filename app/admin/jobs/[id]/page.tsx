@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, Clock, DollarSign, User, Phone, Mail, Flag, CheckSquare, Camera } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, Clock, DollarSign, User, Phone, Mail, Flag, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -14,35 +14,42 @@ export default function AdminJobDetailPage() {
   const router = useRouter();
   const jobId = params.id as string;
   const [isEditing, setIsEditing] = useState(false);
+  const [showAddFlagModal, setShowAddFlagModal] = useState(false);
 
   const { data: job, mutate } = useSupabaseQuery(`admin-job-${jobId}`, async (supabase) => {
-    const { data } = await supabase
-      .from('jobs')
-      .select(`*, stage:job_stages(*), customer:customers(*), checklists:job_checklists(*, items:job_checklist_items(*)), photos:job_photos(*), flags:job_flags_junction(id, flag:custom_flags(*))`)
-      .eq('id', jobId)
-      .single();
+    const { data, error } = await supabase.from('jobs').select('*').eq('id', jobId).single();
+    if (error) console.error('Job fetch error:', error);
     return data;
   });
 
   const { data: stages } = useSupabaseQuery('job-stages', async (supabase) => {
-    const { data } = await supabase.from('job_stages').select('*').eq('is_active', true).order('sort_order');
+    const { data } = await supabase.from('job_stages').select('*').order('sort_order');
     return data || [];
   });
 
   const { data: customers } = useSupabaseQuery('customers-list', async (supabase) => {
-    const { data } = await supabase.from('customers').select('id, name, company').eq('is_active', true).order('name');
+    const { data } = await supabase.from('customers').select('*').order('name');
     return data || [];
   });
+
+  const { data: allFlags } = useSupabaseQuery('all-flags', async (supabase) => {
+    const { data } = await supabase.from('custom_flags').select('*').order('name');
+    return data || [];
+  });
+
+  const { data: jobFlags, mutate: mutateFlags } = useSupabaseQuery(`job-flags-${jobId}`, async (supabase) => {
+    const { data } = await supabase.from('job_flags_junction').select('*, flag:custom_flags(*)').eq('job_id', jobId);
+    return data || [];
+  });
+
+  const customer = customers?.find((c: any) => c.id === job?.customer_id);
+  const stage = stages?.find((s: any) => s.id === job?.stage_id);
 
   const handleStageChange = async (newStageId: string) => {
     const supabase = getSupabaseClient();
     const { error } = await supabase.from('jobs').update({ stage_id: newStageId }).eq('id', jobId);
-    if (error) {
-      toast.error('Failed to update stage');
-    } else {
-      toast.success('Stage updated');
-      mutate();
-    }
+    if (error) toast.error('Failed to update stage');
+    else { toast.success('Stage updated'); mutate(); }
   };
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -60,49 +67,47 @@ export default function AdminJobDetailPage() {
       job_address_state: formData.get('address_state') as string || null,
       job_address_zip: formData.get('address_zip') as string || null,
       scheduled_date: formData.get('scheduled_date') as string || null,
-      scheduled_time_start: formData.get('scheduled_time_start') as string || null,
-      scheduled_time_end: formData.get('scheduled_time_end') as string || null,
       quote_amount: formData.get('quote_amount') ? parseFloat(formData.get('quote_amount') as string) : null,
-      final_amount: formData.get('final_amount') ? parseFloat(formData.get('final_amount') as string) : null,
       internal_notes: formData.get('internal_notes') as string || null,
-      photos_required_before: formData.get('photos_required_before') === 'on',
-      photos_required_after: formData.get('photos_required_after') === 'on',
     };
 
     const { error } = await supabase.from('jobs').update(updates).eq('id', jobId);
-
-    if (error) {
-      toast.error('Failed to update job');
-    } else {
-      toast.success('Job updated');
-      setIsEditing(false);
-      mutate();
-    }
+    if (error) toast.error('Failed to update job');
+    else { toast.success('Job updated'); setIsEditing(false); mutate(); }
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this job?')) return;
-    
+    if (!confirm('Delete this job?')) return;
     const supabase = getSupabaseClient();
     const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+    if (error) toast.error('Failed to delete');
+    else { toast.success('Deleted'); router.push('/admin/jobs'); }
+  };
 
+  const handleAddFlag = async (flagId: string) => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('job_flags_junction').insert({ job_id: jobId, flag_id: flagId });
     if (error) {
-      toast.error('Failed to delete job');
+      if (error.code === '23505') toast.error('Flag already added');
+      else toast.error('Failed to add flag');
     } else {
-      toast.success('Job deleted');
-      router.push('/admin/jobs');
+      toast.success('Flag added');
+      setShowAddFlagModal(false);
+      mutateFlags();
     }
   };
 
-  if (!job) {
-    return <div className="space-y-4"><div className="skeleton h-12 rounded-lg w-32" /><div className="skeleton h-64 rounded-xl" /></div>;
-  }
+  const handleRemoveFlag = async (junctionId: string) => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('job_flags_junction').delete().eq('id', junctionId);
+    if (error) toast.error('Failed to remove');
+    else { toast.success('Removed'); mutateFlags(); }
+  };
 
-  const checklistProgress = job.checklists?.reduce((acc: any, cl: any) => {
-    const checked = cl.items?.filter((i: any) => i.is_checked).length || 0;
-    const total = cl.items?.length || 0;
-    return { checked: acc.checked + checked, total: acc.total + total };
-  }, { checked: 0, total: 0 }) || { checked: 0, total: 0 };
+  if (!job) return <div className="text-center py-12 text-white/60">Loading...</div>;
+
+  const existingFlagIds = jobFlags?.map((f: any) => f.flag_id) || [];
+  const availableFlags = allFlags?.filter((f: any) => !existingFlagIds.includes(f.id)) || [];
 
   return (
     <div className="space-y-6">
@@ -112,7 +117,7 @@ export default function AdminJobDetailPage() {
           <button onClick={() => setIsEditing(!isEditing)} className="btn-secondary">
             {isEditing ? <><X className="w-4 h-4" />Cancel</> : <><Edit2 className="w-4 h-4" />Edit</>}
           </button>
-          <button onClick={handleDelete} className="btn-secondary text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
+          <button onClick={handleDelete} className="btn-secondary text-red-400"><Trash2 className="w-4 h-4" /></button>
         </div>
       </div>
 
@@ -120,47 +125,38 @@ export default function AdminJobDetailPage() {
         <form onSubmit={handleSave} className="space-y-6">
           <div className="card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white">Job Details</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2"><label className="label">Job Name *</label><input type="text" name="name" required className="input" defaultValue={job.name} /></div>
-              <div><label className="label">Customer</label><select name="customer_id" className="input" defaultValue={job.customer_id || ''}><option value="">No customer</option>{customers?.map((c: any) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}</select></div>
-              <div><label className="label">Stage</label><select name="stage_id" className="input" defaultValue={job.stage_id || ''}>{stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
-              <div className="md:col-span-2"><label className="label">Description</label><textarea name="description" rows={3} className="input" defaultValue={job.description || ''} /></div>
+            <div><label className="label">Job Name *</label><input type="text" name="name" required className="input" defaultValue={job.name} /></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div><label className="label">Customer</label>
+                <select name="customer_id" className="input" defaultValue={job.customer_id || ''}>
+                  <option value="">No customer</option>
+                  {customers?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div><label className="label">Stage</label>
+                <select name="stage_id" className="input" defaultValue={job.stage_id || ''}>
+                  {stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
-
-          <div className="card p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Schedule & Pricing</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div><label className="label">Description</label><textarea name="description" rows={3} className="input" defaultValue={job.description || ''} /></div>
+            <div className="grid grid-cols-2 gap-4">
               <div><label className="label">Scheduled Date</label><input type="date" name="scheduled_date" className="input" defaultValue={job.scheduled_date || ''} /></div>
-              <div><label className="label">Start Time</label><input type="time" name="scheduled_time_start" className="input" defaultValue={job.scheduled_time_start || ''} /></div>
-              <div><label className="label">End Time</label><input type="time" name="scheduled_time_end" className="input" defaultValue={job.scheduled_time_end || ''} /></div>
               <div><label className="label">Quote Amount</label><input type="number" name="quote_amount" step="0.01" className="input" defaultValue={job.quote_amount || ''} /></div>
-              <div><label className="label">Final Amount</label><input type="number" name="final_amount" step="0.01" className="input" defaultValue={job.final_amount || ''} /></div>
             </div>
-          </div>
-
-          <div className="card p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Job Address</h2>
-            <div><label className="label">Street</label><input type="text" name="address_street" className="input" defaultValue={job.job_address_street || ''} /></div>
-            <div className="grid grid-cols-3 gap-4">
-              <div><label className="label">City</label><input type="text" name="address_city" className="input" defaultValue={job.job_address_city || ''} /></div>
-              <div><label className="label">State</label><input type="text" name="address_state" className="input" defaultValue={job.job_address_state || ''} /></div>
-              <div><label className="label">ZIP</label><input type="text" name="address_zip" className="input" defaultValue={job.job_address_zip || ''} /></div>
+            <div><label className="label">Address</label>
+              <input type="text" name="address_street" className="input mb-2" defaultValue={job.job_address_street || ''} placeholder="Street" />
+              <div className="grid grid-cols-3 gap-2">
+                <input type="text" name="address_city" className="input" defaultValue={job.job_address_city || ''} placeholder="City" />
+                <input type="text" name="address_state" className="input" defaultValue={job.job_address_state || ''} placeholder="State" />
+                <input type="text" name="address_zip" className="input" defaultValue={job.job_address_zip || ''} placeholder="ZIP" />
+              </div>
             </div>
+            <div><label className="label">Internal Notes</label><textarea name="internal_notes" rows={3} className="input" defaultValue={job.internal_notes || ''} /></div>
           </div>
-
-          <div className="card p-6 space-y-4">
-            <h2 className="text-lg font-semibold text-white">Settings</h2>
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="photos_required_before" defaultChecked={job.photos_required_before} className="rounded" /><span className="text-white">Require before photos</span></label>
-              <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="photos_required_after" defaultChecked={job.photos_required_after} className="rounded" /><span className="text-white">Require after photos</span></label>
-            </div>
-            <div><label className="label">Internal Notes</label><textarea name="internal_notes" rows={3} className="input" defaultValue={job.internal_notes || ''} placeholder="Notes only visible to admin..." /></div>
-          </div>
-
           <div className="flex gap-3">
             <button type="button" onClick={() => setIsEditing(false)} className="btn-secondary flex-1">Cancel</button>
-            <button type="submit" className="btn-primary flex-1"><Save className="w-4 h-4" />Save Changes</button>
+            <button type="submit" className="btn-primary flex-1"><Save className="w-4 h-4" />Save</button>
           </div>
         </form>
       ) : (
@@ -169,15 +165,20 @@ export default function AdminJobDetailPage() {
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-2xl font-bold text-white mb-2">{job.name}</h1>
-                {job.customer && (
-                  <Link href={`/admin/customers/${job.customer.id}`} className="text-white/60 hover:text-brand-500 flex items-center gap-2">
-                    <User className="w-4 h-4" />{job.customer.name}{job.customer.company && ` • ${job.customer.company}`}
+                {customer && (
+                  <Link href={`/admin/customers/${customer.id}`} className="text-white/60 hover:text-brand-500 flex items-center gap-2">
+                    <User className="w-4 h-4" />{customer.name}{customer.company && ` • ${customer.company}`}
                   </Link>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-white/60 text-sm">Stage:</span>
-                <select value={job.stage_id || ''} onChange={(e) => handleStageChange(e.target.value)} className="input py-1.5 px-3 text-sm" style={{ backgroundColor: job.stage ? `${job.stage.color}20` : undefined, color: job.stage?.color || 'white', borderColor: job.stage?.color || undefined }}>
+                <select 
+                  value={job.stage_id || ''} 
+                  onChange={(e) => handleStageChange(e.target.value)} 
+                  className="input py-1.5 px-3 text-sm"
+                  style={{ backgroundColor: stage ? `${stage.color}20` : undefined, color: stage?.color }}
+                >
                   {stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -185,17 +186,24 @@ export default function AdminJobDetailPage() {
 
             {job.description && <p className="text-white/70 mb-4">{job.description}</p>}
 
-            {job.flags?.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {job.flags.map((f: any) => f.flag && <span key={f.id} className="tag" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}><Flag className="w-3 h-3" />{f.flag.name}</span>)}
-              </div>
-            )}
+            {/* Flags */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {jobFlags?.map((f: any) => f.flag && (
+                <span key={f.id} className="tag flex items-center gap-1" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
+                  <Flag className="w-3 h-3" />{f.flag.name}
+                  <button onClick={() => handleRemoveFlag(f.id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
+                </span>
+              ))}
+              {availableFlags.length > 0 && (
+                <button onClick={() => setShowAddFlagModal(true)} className="tag bg-dark-bg text-white/60 hover:text-white">
+                  <Plus className="w-3 h-3" />Add Flag
+                </button>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-dark-border">
               <div><p className="text-white/40 text-sm">Scheduled</p><p className="text-white font-medium flex items-center gap-2"><Calendar className="w-4 h-4 text-white/40" />{job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : '—'}</p></div>
-              <div><p className="text-white/40 text-sm">Time</p><p className="text-white font-medium flex items-center gap-2"><Clock className="w-4 h-4 text-white/40" />{job.scheduled_time_start || '—'}</p></div>
               <div><p className="text-white/40 text-sm">Quote</p><p className="text-white font-medium flex items-center gap-2"><DollarSign className="w-4 h-4 text-white/40" />{job.quote_amount ? `$${job.quote_amount.toLocaleString()}` : '—'}</p></div>
-              <div><p className="text-white/40 text-sm">Checklists</p><p className="text-white font-medium flex items-center gap-2"><CheckSquare className="w-4 h-4 text-white/40" />{checklistProgress.checked}/{checklistProgress.total}</p></div>
             </div>
           </div>
 
@@ -206,35 +214,22 @@ export default function AdminJobDetailPage() {
                 <div>
                   <p className="text-white">{job.job_address_street}</p>
                   <p className="text-white/60">{job.job_address_city}, {job.job_address_state} {job.job_address_zip}</p>
-                  <a href={`https://maps.google.com/?q=${encodeURIComponent(`${job.job_address_street}, ${job.job_address_city}, ${job.job_address_state} ${job.job_address_zip}`)}`} target="_blank" className="btn-secondary mt-4 inline-flex">Open in Maps</a>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(`${job.job_address_street}, ${job.job_address_city}, ${job.job_address_state}`)}`} target="_blank" className="btn-secondary mt-4 inline-flex">Open in Maps</a>
                 </div>
               ) : <p className="text-white/40">No address set</p>}
             </div>
 
-            {job.customer && (
+            {customer && (
               <div className="card p-6">
-                <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><User className="w-5 h-5" />Customer Contact</h2>
-                <p className="text-white font-medium mb-2">{job.customer.name}</p>
-                {job.customer.company && <p className="text-white/60 mb-3">{job.customer.company}</p>}
+                <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><User className="w-5 h-5" />Customer</h2>
+                <p className="text-white font-medium mb-2">{customer.name}</p>
+                {customer.company && <p className="text-white/60 mb-3">{customer.company}</p>}
                 <div className="space-y-2">
-                  {job.customer.phone && <a href={`tel:${job.customer.phone}`} className="flex items-center gap-2 text-white/70 hover:text-white"><Phone className="w-4 h-4" />{job.customer.phone}</a>}
-                  {job.customer.email && <a href={`mailto:${job.customer.email}`} className="flex items-center gap-2 text-white/70 hover:text-white"><Mail className="w-4 h-4" />{job.customer.email}</a>}
+                  {customer.phone && <a href={`tel:${customer.phone}`} className="flex items-center gap-2 text-white/70 hover:text-white"><Phone className="w-4 h-4" />{customer.phone}</a>}
+                  {customer.email && <a href={`mailto:${customer.email}`} className="flex items-center gap-2 text-white/70 hover:text-white"><Mail className="w-4 h-4" />{customer.email}</a>}
                 </div>
               </div>
             )}
-          </div>
-
-          <div className="card p-6">
-            <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Camera className="w-5 h-5" />Photos ({job.photos?.length || 0})</h2>
-            {job.photos?.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {job.photos.map((photo: any) => (
-                  <div key={photo.id} className="aspect-square rounded-lg overflow-hidden bg-dark-bg">
-                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${photo.storage_path}`} alt={photo.photo_type} className="w-full h-full object-cover" />
-                  </div>
-                ))}
-              </div>
-            ) : <p className="text-white/40">No photos uploaded yet</p>}
           </div>
 
           {job.internal_notes && (
@@ -244,6 +239,32 @@ export default function AdminJobDetailPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Add Flag Modal */}
+      {showAddFlagModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setShowAddFlagModal(false)}>
+          <div className="bg-dark-card rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">Add Flag</h2>
+              <button onClick={() => setShowAddFlagModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-2">
+              {availableFlags.map((flag: any) => (
+                <button key={flag.id} onClick={() => handleAddFlag(flag.id)} className="w-full p-3 rounded-lg bg-dark-bg hover:bg-dark-card-hover transition-colors flex items-center gap-3">
+                  <Flag className="w-4 h-4" style={{ color: flag.color }} />
+                  <span className="text-white">{flag.name}</span>
+                </button>
+              ))}
+              {availableFlags.length === 0 && (
+                <div className="text-center py-4">
+                  <p className="text-white/40 mb-2">No flags available</p>
+                  <Link href="/admin/settings" className="text-brand-500 text-sm">Create flags in Settings</Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
