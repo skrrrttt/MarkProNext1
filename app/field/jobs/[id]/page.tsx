@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery, optimisticUpdate } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { savePhotoOffline, updateJobOffline, isOnline } from '@/lib/offline/storage';
-import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn, Download } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn, Download, FileText, File, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
@@ -25,6 +25,11 @@ export default function FieldJobDetailPage() {
   const { data: job, mutate } = useSupabaseQuery(`field-job-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('jobs').select(`*, stage:job_stages(*), customer:customers(*), checklists:job_checklists(*, items:job_checklist_items(*)), photos:job_photos(*)`).eq('id', jobId).single();
     return data;
+  });
+
+  const { data: files } = useSupabaseQuery(`field-job-files-${jobId}`, async (supabase) => {
+    const { data } = await supabase.from('job_files').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
+    return data || [];
   });
 
   const handleToggleItem = useCallback(async (checklistId: string, itemId: string, currentChecked: boolean) => {
@@ -186,6 +191,47 @@ export default function FieldJobDetailPage() {
     return colors[type] || colors.other;
   };
 
+  const handleDownloadFile = useCallback(async (file: any) => {
+    try {
+      const fileUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-files/${file.storage_path}`;
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.file_name;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('File downloaded');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast.error(error?.message || 'Failed to download file');
+    }
+  }, []);
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) return ImageIcon;
+    if (fileType === 'application/pdf') return FileText;
+    return File;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  };
+
   if (!job) return <div className="space-y-4"><div className="skeleton h-48 rounded-xl" /><div className="skeleton h-32 rounded-xl" /><div className="skeleton h-64 rounded-xl" /></div>;
 
   return (
@@ -284,6 +330,40 @@ export default function FieldJobDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Files Section */}
+      {files && files.length > 0 && (
+        <div className="card p-5">
+          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5" />Job Files
+          </h2>
+          <div className="space-y-2">
+            {files.map((file: any) => {
+              const FileIcon = getFileIcon(file.file_type);
+              return (
+                <button
+                  key={file.id}
+                  onClick={() => handleDownloadFile(file)}
+                  className="w-full bg-dark-bg rounded-lg p-4 flex items-center gap-4 active:bg-dark-card-hover transition-colors"
+                >
+                  <div className="flex-shrink-0 w-10 h-10 bg-brand-500/20 rounded-lg flex items-center justify-center">
+                    <FileIcon className="w-5 h-5 text-brand-500" />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-white font-medium truncate">{file.file_name}</p>
+                    <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
+                      <span>{formatFileSize(file.file_size)}</span>
+                      <span>•</span>
+                      <span>{format(new Date(file.created_at), 'MMM d, yyyy')}</span>
+                    </div>
+                  </div>
+                  <Download className="w-5 h-5 text-white/40 flex-shrink-0" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4">
         <h2 className="font-semibold text-white text-lg">Checklists</h2>
