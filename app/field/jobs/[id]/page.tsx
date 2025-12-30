@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery, optimisticUpdate } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { savePhotoOffline, updateJobOffline, isOnline } from '@/lib/offline/storage';
-import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn, Download } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
@@ -19,6 +19,7 @@ export default function FieldJobDetailPage() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<any>(null);
   const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [downloadingPhoto, setDownloadingPhoto] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
   const { data: job, mutate } = useSupabaseQuery(`field-job-${jobId}`, async (supabase) => {
@@ -98,11 +99,39 @@ export default function FieldJobDetailPage() {
     window.open(`https://maps.google.com/?q=${encodeURIComponent(address)}`, '_blank');
   };
 
-  const getPhotoUrl = (storagePath: string, width?: number) => {
-    const baseUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${storagePath}`;
-    // Use Supabase image transformations for thumbnails
-    return width ? `${baseUrl}?width=${width}&quality=80` : baseUrl;
+  const getPhotoUrl = (storagePath: string) => {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${storagePath}`;
   };
+
+  const handleDownloadPhoto = useCallback(async (photo: any) => {
+    setDownloadingPhoto(true);
+    try {
+      const photoUrl = getPhotoUrl(photo.storage_path);
+      const response = await fetch(photoUrl);
+      if (!response.ok) throw new Error('Failed to fetch image');
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+
+      // Generate filename: jobId-photoType-timestamp.jpg
+      const timestamp = format(new Date(photo.created_at), 'yyyyMMdd-HHmmss');
+      a.download = `${jobId}-${photo.photo_type}-${timestamp}.jpg`;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Photo downloaded');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to download photo');
+    } finally {
+      setDownloadingPhoto(false);
+    }
+  }, [jobId]);
 
   const getPhotoTypeLabel = (type: string) => {
     const labels: Record<string, string> = { before: 'Before', after: 'After', progress: 'Progress', other: 'Other' };
@@ -174,7 +203,7 @@ export default function FieldJobDetailPage() {
                   >
                     {!imageErrors.has(photo.id) ? (
                       <img
-                        src={getPhotoUrl(photo.storage_path, 400)}
+                        src={getPhotoUrl(photo.storage_path)}
                         alt={getPhotoTypeLabel(photo.photo_type)}
                         className="w-full h-full object-cover"
                         loading="lazy"
@@ -280,18 +309,28 @@ export default function FieldJobDetailPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => handleDeletePhoto(selectedPhoto)}
-                disabled={deletingPhoto}
-                className="flex-1 btn-field-secondary bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="w-5 h-5" />
-                {deletingPhoto ? 'Deleting...' : 'Delete Photo'}
-              </button>
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleDownloadPhoto(selectedPhoto)}
+                  disabled={downloadingPhoto}
+                  className="flex-1 btn-field-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Download className="w-5 h-5" />
+                  {downloadingPhoto ? 'Downloading...' : 'Download Full Size'}
+                </button>
+                <button
+                  onClick={() => handleDeletePhoto(selectedPhoto)}
+                  disabled={deletingPhoto}
+                  className="flex-1 btn-field-secondary bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  {deletingPhoto ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
               <button
                 onClick={() => setSelectedPhoto(null)}
-                className="flex-1 btn-field-secondary"
+                className="w-full btn-field-secondary"
               >
                 Close
               </button>
