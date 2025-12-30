@@ -2,14 +2,17 @@
 
 import { useState, useMemo } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, Briefcase } from 'lucide-react';
+import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, Briefcase, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function AdminCustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
 
-  const { data: customers } = useSupabaseQuery('admin-customers', async (supabase) => {
+  const { data: customers, mutate } = useSupabaseQuery('admin-customers', async (supabase) => {
     const { data } = await supabase.from('customers').select(`*, tags:customer_tags_junction(tag:custom_tags(*)), jobs(id)`).eq('is_active', true).order('name');
     return data || [];
   });
@@ -28,11 +31,39 @@ export default function AdminCustomersPage() {
     });
   }, [customers, searchQuery, selectedTag]);
 
+  const handleCreateCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const supabase = getSupabaseClient();
+    
+    const customerData = {
+      name: formData.get('name') as string,
+      company: formData.get('company') as string || null,
+      email: formData.get('email') as string || null,
+      phone: formData.get('phone') as string || null,
+      address_street: formData.get('address_street') as string || null,
+      address_city: formData.get('address_city') as string || null,
+      address_state: formData.get('address_state') as string || null,
+      address_zip: formData.get('address_zip') as string || null,
+      notes: formData.get('notes') as string || null,
+    };
+
+    const { error } = await supabase.from('customers').insert(customerData);
+    
+    if (error) {
+      toast.error('Failed to create customer');
+    } else {
+      toast.success('Customer created');
+      setShowNewCustomerModal(false);
+      mutate();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div><h1 className="text-2xl font-bold text-white">Customers</h1><p className="text-white/60 mt-1">{customers?.length || 0} total</p></div>
-        <button className="btn-primary"><Plus className="w-4 h-4" />New Customer</button>
+        <button onClick={() => setShowNewCustomerModal(true)} className="btn-primary"><Plus className="w-4 h-4" />New Customer</button>
       </div>
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" /><input type="text" placeholder="Search customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10" /></div>
@@ -64,6 +95,55 @@ export default function AdminCustomersPage() {
         ))}
       </div>
       {filteredCustomers.length === 0 && <div className="card p-12 text-center"><Building2 className="w-16 h-16 text-white/20 mx-auto mb-4" /><h3 className="text-lg font-semibold text-white mb-2">No customers found</h3></div>}
+
+      {/* New Customer Modal */}
+      {showNewCustomerModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">New Customer</h2>
+              <button onClick={() => setShowNewCustomerModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleCreateCustomer} className="p-4 space-y-4">
+              <div>
+                <label className="label">Contact Name *</label>
+                <input type="text" name="name" required className="input" placeholder="John Smith" />
+              </div>
+              <div>
+                <label className="label">Company</label>
+                <input type="text" name="company" className="input" placeholder="ABC Corporation" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="label">Email</label>
+                  <input type="email" name="email" className="input" placeholder="john@example.com" />
+                </div>
+                <div>
+                  <label className="label">Phone</label>
+                  <input type="tel" name="phone" className="input" placeholder="(555) 123-4567" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Address</label>
+                <input type="text" name="address_street" className="input mb-2" placeholder="Street" />
+                <div className="grid grid-cols-3 gap-2">
+                  <input type="text" name="address_city" className="input" placeholder="City" />
+                  <input type="text" name="address_state" className="input" placeholder="State" />
+                  <input type="text" name="address_zip" className="input" placeholder="ZIP" />
+                </div>
+              </div>
+              <div>
+                <label className="label">Notes</label>
+                <textarea name="notes" rows={3} className="input" placeholder="Any notes about this customer..." />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setShowNewCustomerModal(false)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" className="btn-primary flex-1">Create Customer</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
