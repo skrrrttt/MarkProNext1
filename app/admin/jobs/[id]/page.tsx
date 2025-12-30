@@ -22,6 +22,7 @@ export default function AdminJobDetailPage() {
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
   const [uploadingFile, setUploadingFile] = useState(false);
   const [deletingFile, setDeletingFile] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<any>(null);
 
   const { data: job, mutate } = useSupabaseQuery(`admin-job-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
@@ -325,9 +326,21 @@ export default function AdminJobDetailPage() {
     }
   };
 
+  const getFileUrl = (storagePath: string) => {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-files/${storagePath}`;
+  };
+
+  const handleFileClick = (file: any) => {
+    if (file.file_type === 'application/pdf') {
+      setSelectedFile(file);
+    } else {
+      handleDownloadFile(file);
+    }
+  };
+
   const handleDownloadFile = async (file: any) => {
     try {
-      const fileUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-files/${file.storage_path}`;
+      const fileUrl = getFileUrl(file.storage_path);
       const response = await fetch(fileUrl);
 
       if (!response.ok) {
@@ -631,29 +644,44 @@ export default function AdminJobDetailPage() {
               <div className="space-y-2">
                 {files.map((file: any) => {
                   const FileIcon = getFileIcon(file.file_type);
+                  const isPdf = file.file_type === 'application/pdf';
                   return (
-                    <div key={file.id} className="bg-dark-bg rounded-lg p-4 flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 bg-brand-500/20 rounded-lg flex items-center justify-center">
-                        <FileIcon className="w-5 h-5 text-brand-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium truncate">{file.file_name}</p>
-                        <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
-                          <span>{formatFileSize(file.file_size)}</span>
-                          <span>•</span>
-                          <span>{format(new Date(file.created_at), 'MMM d, yyyy')}</span>
+                    <div key={file.id} className="bg-dark-bg rounded-lg overflow-hidden hover:bg-dark-card-hover transition-colors">
+                      <button
+                        onClick={() => handleFileClick(file)}
+                        className="w-full p-4 flex items-center gap-4 text-left"
+                      >
+                        <div className="flex-shrink-0 w-10 h-10 bg-brand-500/20 rounded-lg flex items-center justify-center">
+                          <FileIcon className="w-5 h-5 text-brand-500" />
                         </div>
-                      </div>
-                      <div className="flex gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-medium truncate">{file.file_name}</p>
+                          <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
+                            <span>{formatFileSize(file.file_size)}</span>
+                            <span>•</span>
+                            <span>{format(new Date(file.created_at), 'MMM d, yyyy')}</span>
+                            {isPdf && <span className="text-brand-500">• Click to view</span>}
+                          </div>
+                        </div>
+                        {!isPdf && <Download className="w-5 h-5 text-white/40 flex-shrink-0" />}
+                        {isPdf && <ZoomIn className="w-5 h-5 text-white/40 flex-shrink-0" />}
+                      </button>
+                      <div className="px-4 pb-4 flex gap-2">
                         <button
-                          onClick={() => handleDownloadFile(file)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadFile(file);
+                          }}
                           className="btn-icon text-white/60 hover:text-white"
                           title="Download"
                         >
                           <Download className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteFile(file)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFile(file);
+                          }}
                           disabled={deletingFile}
                           className="btn-icon text-white/60 hover:text-red-400 disabled:opacity-50"
                           title="Delete"
@@ -823,6 +851,67 @@ export default function AdminJobDetailPage() {
               <button
                 onClick={() => setSelectedPhoto(null)}
                 className="w-full btn-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Viewer Modal */}
+      {selectedFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setSelectedFile(null)}>
+          <div className="relative max-w-6xl w-full h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-brand-500" />
+                <span className="text-white font-medium">{selectedFile.file_name}</span>
+                <span className="text-sm text-white/60">
+                  {formatFileSize(selectedFile.file_size)} • {format(new Date(selectedFile.created_at), 'MMM d, yyyy')}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="flex-1 bg-dark-bg rounded-xl overflow-hidden mb-4">
+              <iframe
+                src={getFileUrl(selectedFile.storage_path)}
+                className="w-full h-full"
+                title={selectedFile.file_name}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleDownloadFile(selectedFile)}
+                className="flex-1 btn-primary"
+              >
+                <Download className="w-5 h-5" />
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteFile(selectedFile);
+                  setSelectedFile(null);
+                }}
+                disabled={deletingFile}
+                className="flex-1 btn-secondary bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 disabled:opacity-50"
+              >
+                <Trash2 className="w-5 h-5" />
+                {deletingFile ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="flex-1 btn-secondary"
               >
                 Close
               </button>
