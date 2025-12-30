@@ -9,7 +9,7 @@ export default function AdminDashboardPage() {
   const { data: stats } = useSupabaseQuery('dashboard-stats', async (supabase) => {
     const [jobs, customers] = await Promise.all([
       supabase.from('jobs').select('id', { count: 'exact' }),
-      supabase.from('customers').select('id', { count: 'exact' }),
+      supabase.from('customers').select('id', { count: 'exact' }).eq('is_active', true),
     ]);
     return { totalJobs: jobs.count || 0, totalCustomers: customers.count || 0 };
   });
