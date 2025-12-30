@@ -120,11 +120,13 @@ export default function AdminJobDetailPage() {
     if (!template) return;
 
     // First, fetch the template items directly from DB to ensure we have them
-    const { data: templateItems } = await supabase
+    const { data: templateItems, error: fetchError } = await supabase
       .from('checklist_template_items')
       .select('*')
       .eq('template_id', templateId)
       .order('sort_order');
+
+    console.log('Template items fetched:', templateItems, 'Error:', fetchError);
 
     // Create the job checklist
     const { data: checklist, error: checklistError } = await supabase
@@ -133,6 +135,8 @@ export default function AdminJobDetailPage() {
       .select()
       .single();
 
+    console.log('Created checklist:', checklist, 'Error:', checklistError);
+
     if (checklistError) {
       toast.error('Failed to add checklist');
       return;
@@ -140,16 +144,22 @@ export default function AdminJobDetailPage() {
 
     // Create the checklist items from template items
     if (templateItems && templateItems.length > 0) {
-      const items = templateItems.map((item: any) => ({
+      const items = templateItems.map((item: any, index: number) => ({
         checklist_id: checklist.id,
-        name: item.name,
-        sort_order: item.sort_order || 0,
+        text: item.name,
+        sort_order: item.sort_order ?? index,
         is_checked: false,
       }));
-      const { error: itemsError } = await supabase.from('job_checklist_items').insert(items);
+      console.log('Inserting items:', items);
+      const { data: insertedItems, error: itemsError } = await supabase.from('job_checklist_items').insert(items).select();
+      console.log('Inserted items:', insertedItems, 'Error:', itemsError);
       if (itemsError) {
-        console.error('Failed to create checklist items:', itemsError);
+        toast.error('Failed to create checklist items: ' + itemsError.message);
+        return;
       }
+    } else {
+      console.log('No template items found for template:', templateId);
+      toast.error('No items in this checklist template');
     }
 
     toast.success('Checklist added');
@@ -310,7 +320,7 @@ export default function AdminJobDetailPage() {
                         {items.map((item: any) => (
                           <button key={item.id} onClick={() => handleToggleChecklistItem(item.id, item.is_checked)} className="w-full flex items-center gap-3 p-2 rounded hover:bg-dark-card transition-colors text-left">
                             {item.is_checked ? <CheckSquare className="w-5 h-5 text-green-500" /> : <Square className="w-5 h-5 text-white/30" />}
-                            <span className={item.is_checked ? 'text-white/50 line-through' : 'text-white'}>{item.name}</span>
+                            <span className={item.is_checked ? 'text-white/50 line-through' : 'text-white'}>{item.text || item.name}</span>
                           </button>
                         ))}
                       </div>
