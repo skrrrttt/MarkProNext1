@@ -1,11 +1,80 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Users, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2 } from 'lucide-react';
+import { useSupabaseQuery } from '@/lib/offline/swr';
+import { getSupabaseClient } from '@/lib/supabase/client';
+import { Building2, Users, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState('company');
+  const [showAddModal, setShowAddModal] = useState<string | null>(null);
+
+  const { data: tags, mutate: mutateTags } = useSupabaseQuery('all-tags', async (supabase) => {
+    const { data } = await supabase.from('custom_tags').select('*').order('name');
+    return data || [];
+  });
+
+  const { data: flags, mutate: mutateFlags } = useSupabaseQuery('all-flags', async (supabase) => {
+    const { data } = await supabase.from('custom_flags').select('*').order('name');
+    return data || [];
+  });
+
+  const { data: stages, mutate: mutateStages } = useSupabaseQuery('all-stages', async (supabase) => {
+    const { data } = await supabase.from('job_stages').select('*').order('sort_order');
+    return data || [];
+  });
+
+  const handleAddTag = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase.from('custom_tags').insert({
+      name: formData.get('name') as string,
+      color: formData.get('color') as string || '#3b82f6',
+      category: 'customer',
+    });
+
+    if (error) toast.error('Failed to add tag');
+    else { toast.success('Tag added'); setShowAddModal(null); mutateTags(); }
+  };
+
+  const handleDeleteTag = async (id: string) => {
+    if (!confirm('Delete this tag?')) return;
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('custom_tags').delete().eq('id', id);
+    if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateTags(); }
+  };
+
+  const handleAddFlag = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const supabase = getSupabaseClient();
+    
+    const { error } = await supabase.from('custom_flags').insert({
+      name: formData.get('name') as string,
+      color: formData.get('color') as string || '#ef4444',
+      icon: 'flag',
+    });
+
+    if (error) toast.error('Failed to add flag');
+    else { toast.success('Flag added'); setShowAddModal(null); mutateFlags(); }
+  };
+
+  const handleDeleteFlag = async (id: string) => {
+    if (!confirm('Delete this flag?')) return;
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('custom_flags').delete().eq('id', id);
+    if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateFlags(); }
+  };
+
+  const handleToggleStageVisibility = async (id: string, currentValue: boolean) => {
+    const supabase = getSupabaseClient();
+    const { error } = await supabase.from('job_stages').update({ is_field_visible: !currentValue }).eq('id', id);
+    if (error) toast.error('Failed to update'); else { mutateStages(); }
+  };
+
   const tabs = [
     { id: 'company', label: 'Company', icon: Building2 },
     { id: 'users', label: 'Users & Passwords', icon: Users },
@@ -35,6 +104,7 @@ export default function AdminSettingsPage() {
               <button className="btn-primary" onClick={() => toast.success('Saved')}><Save className="w-4 h-4" />Save</button>
             </div>
           )}
+
           {activeTab === 'users' && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-white">Login Passwords</h2>
@@ -46,26 +116,76 @@ export default function AdminSettingsPage() {
               <button className="btn-primary" onClick={() => toast.success('Updated')}><Save className="w-4 h-4" />Save</button>
             </div>
           )}
+
           {activeTab === 'tags' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-white">Customer Tags</h2><button className="btn-secondary"><Plus className="w-4 h-4" />Add</button></div>
-              <div className="space-y-2">{['Commercial', 'Residential', 'Municipal', 'Repeat Customer'].map((tag, i) => <div key={i} className="flex items-center justify-between p-3 bg-dark-bg rounded-lg"><div className="flex items-center gap-3"><div className="w-4 h-4 rounded-full bg-blue-500" /><span className="text-white">{tag}</span></div><button className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button></div>)}</div>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Customer Tags</h2>
+                <button onClick={() => setShowAddModal('tag')} className="btn-secondary"><Plus className="w-4 h-4" />Add Tag</button>
+              </div>
+              <div className="space-y-2">
+                {tags?.filter((t: any) => t.category === 'customer').map((tag: any) => (
+                  <div key={tag.id} className="flex items-center justify-between p-3 bg-dark-bg rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }} />
+                      <span className="text-white">{tag.name}</span>
+                    </div>
+                    <button onClick={() => handleDeleteTag(tag.id)} className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                {tags?.filter((t: any) => t.category === 'customer').length === 0 && <p className="text-white/40 text-center py-4">No tags yet</p>}
+              </div>
             </div>
           )}
+
           {activeTab === 'flags' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between"><h2 className="text-lg font-semibold text-white">Job Flags</h2><button className="btn-secondary"><Plus className="w-4 h-4" />Add</button></div>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Job Flags</h2>
+                <button onClick={() => setShowAddModal('flag')} className="btn-secondary"><Plus className="w-4 h-4" />Add Flag</button>
+              </div>
               <p className="text-white/60 text-sm">Mark jobs that need attention</p>
-              <div className="space-y-2">{[{ name: 'Urgent', color: '#ef4444' }, { name: 'Need to Contact', color: '#f59e0b' }, { name: 'Waiting on Customer', color: '#6366f1' }].map((flag, i) => <div key={i} className="flex items-center justify-between p-3 bg-dark-bg rounded-lg"><div className="flex items-center gap-3"><Flag className="w-4 h-4" style={{ color: flag.color }} /><span className="text-white">{flag.name}</span></div><button className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button></div>)}</div>
+              <div className="space-y-2">
+                {flags?.map((flag: any) => (
+                  <div key={flag.id} className="flex items-center justify-between p-3 bg-dark-bg rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Flag className="w-4 h-4" style={{ color: flag.color }} />
+                      <span className="text-white">{flag.name}</span>
+                    </div>
+                    <button onClick={() => handleDeleteFlag(flag.id)} className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                ))}
+                {flags?.length === 0 && <p className="text-white/40 text-center py-4">No flags yet</p>}
+              </div>
             </div>
           )}
+
           {activeTab === 'stages' && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-white">Job Pipeline Stages</h2>
               <p className="text-white/60 text-sm">Toggle which stages are visible to field workers</p>
-              <div className="space-y-2">{[{ name: 'Lead', color: '#94a3b8', field: false }, { name: 'Quote Sent', color: '#f59e0b', field: false }, { name: 'Approved', color: '#10b981', field: false }, { name: 'Scheduled', color: '#3b82f6', field: true }, { name: 'In Progress', color: '#8b5cf6', field: true }, { name: 'Completed', color: '#22c55e', field: true }, { name: 'Invoiced', color: '#06b6d4', field: false }].map((stage, i) => <div key={i} className="flex items-center justify-between p-3 bg-dark-bg rounded-lg"><div className="flex items-center gap-3"><div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} /><span className="text-white">{stage.name}</span></div><label className="flex items-center gap-2 text-sm text-white/60"><input type="checkbox" defaultChecked={stage.field} className="rounded" />Field visible</label></div>)}</div>
+              <div className="space-y-2">
+                {stages?.map((stage: any) => (
+                  <div key={stage.id} className="flex items-center justify-between p-3 bg-dark-bg rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                      <span className="text-white">{stage.name}</span>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-white/60 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={stage.is_field_visible} 
+                        onChange={() => handleToggleStageVisibility(stage.id, stage.is_field_visible)}
+                        className="rounded" 
+                      />
+                      Field visible
+                    </label>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
           {activeTab === 'integrations' && (
             <div className="space-y-6">
               <h2 className="text-lg font-semibold text-white">Integrations</h2>
@@ -77,6 +197,46 @@ export default function AdminSettingsPage() {
           )}
         </div>
       </div>
+
+      {/* Add Tag Modal */}
+      {showAddModal === 'tag' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-card rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">Add Tag</h2>
+              <button onClick={() => setShowAddModal(null)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleAddTag} className="p-4 space-y-4">
+              <div><label className="label">Tag Name *</label><input type="text" name="name" required className="input" placeholder="e.g. VIP Customer" /></div>
+              <div><label className="label">Color</label><input type="color" name="color" className="input h-10 p-1" defaultValue="#3b82f6" /></div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddModal(null)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" className="btn-primary flex-1">Add Tag</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Flag Modal */}
+      {showAddModal === 'flag' && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-dark-card rounded-xl w-full max-w-sm">
+            <div className="flex items-center justify-between p-4 border-b border-dark-border">
+              <h2 className="text-lg font-semibold text-white">Add Flag</h2>
+              <button onClick={() => setShowAddModal(null)} className="btn-icon"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleAddFlag} className="p-4 space-y-4">
+              <div><label className="label">Flag Name *</label><input type="text" name="name" required className="input" placeholder="e.g. Urgent" /></div>
+              <div><label className="label">Color</label><input type="color" name="color" className="input h-10 p-1" defaultValue="#ef4444" /></div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowAddModal(null)} className="btn-secondary flex-1">Cancel</button>
+                <button type="submit" className="btn-primary flex-1">Add Flag</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
