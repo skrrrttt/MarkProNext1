@@ -3,13 +3,12 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { Briefcase, ClipboardList, Camera, User } from 'lucide-react';
+import { Briefcase, ClipboardList, User } from 'lucide-react';
 import Link from 'next/link';
 
 const navItems = [
   { href: '/field/jobs', icon: Briefcase, label: 'Jobs' },
   { href: '/field/tasks', icon: ClipboardList, label: 'Tasks' },
-  { href: '/field/photos', icon: Camera, label: 'Photos' },
   { href: '/field/profile', icon: User, label: 'Profile' },
 ];
 
