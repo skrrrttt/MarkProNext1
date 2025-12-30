@@ -81,7 +81,7 @@ export default function AdminJobDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this job? This cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete this job?')) return;
     
     const supabase = getSupabaseClient();
     const { error } = await supabase.from('jobs').delete().eq('id', jobId);
@@ -95,7 +95,7 @@ export default function AdminJobDetailPage() {
   };
 
   if (!job) {
-    return <div className="space-y-4"><div className="skeleton h-12 rounded-lg w-32" /><div className="skeleton h-64 rounded-xl" /><div className="skeleton h-48 rounded-xl" /></div>;
+    return <div className="space-y-4"><div className="skeleton h-12 rounded-lg w-32" /><div className="skeleton h-64 rounded-xl" /></div>;
   }
 
   const checklistProgress = job.checklists?.reduce((acc: any, cl: any) => {
@@ -106,9 +106,8 @@ export default function AdminJobDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={() => router.back()} className="btn-secondary"><ArrowLeft className="w-4 h-4" />Back</button>
+        <button onClick={() => router.push('/admin/jobs')} className="btn-secondary"><ArrowLeft className="w-4 h-4" />Back</button>
         <div className="flex gap-2">
           <button onClick={() => setIsEditing(!isEditing)} className="btn-secondary">
             {isEditing ? <><X className="w-4 h-4" />Cancel</> : <><Edit2 className="w-4 h-4" />Edit</>}
@@ -118,107 +117,45 @@ export default function AdminJobDetailPage() {
       </div>
 
       {isEditing ? (
-        /* Edit Form */
         <form onSubmit={handleSave} className="space-y-6">
           <div className="card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white">Job Details</h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <label className="label">Job Name *</label>
-                <input type="text" name="name" required className="input" defaultValue={job.name} />
-              </div>
-              
-              <div>
-                <label className="label">Customer</label>
-                <select name="customer_id" className="input" defaultValue={job.customer_id || ''}>
-                  <option value="">No customer</option>
-                  {customers?.map((c: any) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}
-                </select>
-              </div>
-              
-              <div>
-                <label className="label">Stage</label>
-                <select name="stage_id" className="input" defaultValue={job.stage_id || ''}>
-                  {stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-              
-              <div className="md:col-span-2">
-                <label className="label">Description</label>
-                <textarea name="description" rows={3} className="input" defaultValue={job.description || ''} />
-              </div>
+              <div className="md:col-span-2"><label className="label">Job Name *</label><input type="text" name="name" required className="input" defaultValue={job.name} /></div>
+              <div><label className="label">Customer</label><select name="customer_id" className="input" defaultValue={job.customer_id || ''}><option value="">No customer</option>{customers?.map((c: any) => <option key={c.id} value={c.id}>{c.name}{c.company ? ` (${c.company})` : ''}</option>)}</select></div>
+              <div><label className="label">Stage</label><select name="stage_id" className="input" defaultValue={job.stage_id || ''}>{stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></div>
+              <div className="md:col-span-2"><label className="label">Description</label><textarea name="description" rows={3} className="input" defaultValue={job.description || ''} /></div>
             </div>
           </div>
 
           <div className="card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white">Schedule & Pricing</h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="label">Scheduled Date</label>
-                <input type="date" name="scheduled_date" className="input" defaultValue={job.scheduled_date || ''} />
-              </div>
-              <div>
-                <label className="label">Start Time</label>
-                <input type="time" name="scheduled_time_start" className="input" defaultValue={job.scheduled_time_start || ''} />
-              </div>
-              <div>
-                <label className="label">End Time</label>
-                <input type="time" name="scheduled_time_end" className="input" defaultValue={job.scheduled_time_end || ''} />
-              </div>
-              <div>
-                <label className="label">Quote Amount</label>
-                <input type="number" name="quote_amount" step="0.01" className="input" defaultValue={job.quote_amount || ''} />
-              </div>
-              <div>
-                <label className="label">Final Amount</label>
-                <input type="number" name="final_amount" step="0.01" className="input" defaultValue={job.final_amount || ''} />
-              </div>
+              <div><label className="label">Scheduled Date</label><input type="date" name="scheduled_date" className="input" defaultValue={job.scheduled_date || ''} /></div>
+              <div><label className="label">Start Time</label><input type="time" name="scheduled_time_start" className="input" defaultValue={job.scheduled_time_start || ''} /></div>
+              <div><label className="label">End Time</label><input type="time" name="scheduled_time_end" className="input" defaultValue={job.scheduled_time_end || ''} /></div>
+              <div><label className="label">Quote Amount</label><input type="number" name="quote_amount" step="0.01" className="input" defaultValue={job.quote_amount || ''} /></div>
+              <div><label className="label">Final Amount</label><input type="number" name="final_amount" step="0.01" className="input" defaultValue={job.final_amount || ''} /></div>
             </div>
           </div>
 
           <div className="card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white">Job Address</h2>
-            
-            <div>
-              <label className="label">Street</label>
-              <input type="text" name="address_street" className="input" defaultValue={job.job_address_street || ''} />
-            </div>
+            <div><label className="label">Street</label><input type="text" name="address_street" className="input" defaultValue={job.job_address_street || ''} /></div>
             <div className="grid grid-cols-3 gap-4">
-              <div>
-                <label className="label">City</label>
-                <input type="text" name="address_city" className="input" defaultValue={job.job_address_city || ''} />
-              </div>
-              <div>
-                <label className="label">State</label>
-                <input type="text" name="address_state" className="input" defaultValue={job.job_address_state || ''} />
-              </div>
-              <div>
-                <label className="label">ZIP</label>
-                <input type="text" name="address_zip" className="input" defaultValue={job.job_address_zip || ''} />
-              </div>
+              <div><label className="label">City</label><input type="text" name="address_city" className="input" defaultValue={job.job_address_city || ''} /></div>
+              <div><label className="label">State</label><input type="text" name="address_state" className="input" defaultValue={job.job_address_state || ''} /></div>
+              <div><label className="label">ZIP</label><input type="text" name="address_zip" className="input" defaultValue={job.job_address_zip || ''} /></div>
             </div>
           </div>
 
           <div className="card p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white">Settings</h2>
-            
             <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" name="photos_required_before" defaultChecked={job.photos_required_before} className="rounded" />
-                <span className="text-white">Require before photos</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" name="photos_required_after" defaultChecked={job.photos_required_after} className="rounded" />
-                <span className="text-white">Require after photos</span>
-              </label>
+              <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="photos_required_before" defaultChecked={job.photos_required_before} className="rounded" /><span className="text-white">Require before photos</span></label>
+              <label className="flex items-center gap-3 cursor-pointer"><input type="checkbox" name="photos_required_after" defaultChecked={job.photos_required_after} className="rounded" /><span className="text-white">Require after photos</span></label>
             </div>
-
-            <div>
-              <label className="label">Internal Notes</label>
-              <textarea name="internal_notes" rows={3} className="input" defaultValue={job.internal_notes || ''} placeholder="Notes only visible to admin..." />
-            </div>
+            <div><label className="label">Internal Notes</label><textarea name="internal_notes" rows={3} className="input" defaultValue={job.internal_notes || ''} placeholder="Notes only visible to admin..." /></div>
           </div>
 
           <div className="flex gap-3">
@@ -227,34 +164,20 @@ export default function AdminJobDetailPage() {
           </div>
         </form>
       ) : (
-        /* View Mode */
         <>
-          {/* Job Header */}
           <div className="card p-6">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 mb-4">
               <div>
                 <h1 className="text-2xl font-bold text-white mb-2">{job.name}</h1>
                 {job.customer && (
                   <Link href={`/admin/customers/${job.customer.id}`} className="text-white/60 hover:text-brand-500 flex items-center gap-2">
-                    <User className="w-4 h-4" />
-                    {job.customer.name}{job.customer.company && ` • ${job.customer.company}`}
+                    <User className="w-4 h-4" />{job.customer.name}{job.customer.company && ` • ${job.customer.company}`}
                   </Link>
                 )}
               </div>
-              
-              {/* Stage Dropdown */}
               <div className="flex items-center gap-2">
                 <span className="text-white/60 text-sm">Stage:</span>
-                <select 
-                  value={job.stage_id || ''} 
-                  onChange={(e) => handleStageChange(e.target.value)}
-                  className="input py-1.5 px-3 pr-8 text-sm"
-                  style={{ 
-                    backgroundColor: job.stage ? `${job.stage.color}20` : undefined,
-                    color: job.stage?.color || 'white',
-                    borderColor: job.stage?.color || undefined
-                  }}
-                >
+                <select value={job.stage_id || ''} onChange={(e) => handleStageChange(e.target.value)} className="input py-1.5 px-3 text-sm" style={{ backgroundColor: job.stage ? `${job.stage.color}20` : undefined, color: job.stage?.color || 'white', borderColor: job.stage?.color || undefined }}>
                   {stages?.map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -262,51 +185,20 @@ export default function AdminJobDetailPage() {
 
             {job.description && <p className="text-white/70 mb-4">{job.description}</p>}
 
-            {/* Flags */}
             {job.flags?.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-4">
-                {job.flags.map((f: any) => f.flag && (
-                  <span key={f.id} className="tag" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
-                    <Flag className="w-3 h-3" />{f.flag.name}
-                  </span>
-                ))}
+                {job.flags.map((f: any) => f.flag && <span key={f.id} className="tag" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}><Flag className="w-3 h-3" />{f.flag.name}</span>)}
               </div>
             )}
 
-            {/* Quick Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-dark-border">
-              <div>
-                <p className="text-white/40 text-sm">Scheduled</p>
-                <p className="text-white font-medium flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-white/40" />
-                  {job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-white/40 text-sm">Time</p>
-                <p className="text-white font-medium flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-white/40" />
-                  {job.scheduled_time_start || '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-white/40 text-sm">Quote</p>
-                <p className="text-white font-medium flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-white/40" />
-                  {job.quote_amount ? `$${job.quote_amount.toLocaleString()}` : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-white/40 text-sm">Checklists</p>
-                <p className="text-white font-medium flex items-center gap-2">
-                  <CheckSquare className="w-4 h-4 text-white/40" />
-                  {checklistProgress.checked}/{checklistProgress.total}
-                </p>
-              </div>
+              <div><p className="text-white/40 text-sm">Scheduled</p><p className="text-white font-medium flex items-center gap-2"><Calendar className="w-4 h-4 text-white/40" />{job.scheduled_date ? format(new Date(job.scheduled_date), 'MMM d, yyyy') : '—'}</p></div>
+              <div><p className="text-white/40 text-sm">Time</p><p className="text-white font-medium flex items-center gap-2"><Clock className="w-4 h-4 text-white/40" />{job.scheduled_time_start || '—'}</p></div>
+              <div><p className="text-white/40 text-sm">Quote</p><p className="text-white font-medium flex items-center gap-2"><DollarSign className="w-4 h-4 text-white/40" />{job.quote_amount ? `$${job.quote_amount.toLocaleString()}` : '—'}</p></div>
+              <div><p className="text-white/40 text-sm">Checklists</p><p className="text-white font-medium flex items-center gap-2"><CheckSquare className="w-4 h-4 text-white/40" />{checklistProgress.checked}/{checklistProgress.total}</p></div>
             </div>
           </div>
 
-          {/* Address & Contact */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="card p-6">
               <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><MapPin className="w-5 h-5" />Job Address</h2>
@@ -314,17 +206,9 @@ export default function AdminJobDetailPage() {
                 <div>
                   <p className="text-white">{job.job_address_street}</p>
                   <p className="text-white/60">{job.job_address_city}, {job.job_address_state} {job.job_address_zip}</p>
-                  <a 
-                    href={`https://maps.google.com/?q=${encodeURIComponent(`${job.job_address_street}, ${job.job_address_city}, ${job.job_address_state} ${job.job_address_zip}`)}`}
-                    target="_blank"
-                    className="btn-secondary mt-4 inline-flex"
-                  >
-                    Open in Maps
-                  </a>
+                  <a href={`https://maps.google.com/?q=${encodeURIComponent(`${job.job_address_street}, ${job.job_address_city}, ${job.job_address_state} ${job.job_address_zip}`)}`} target="_blank" className="btn-secondary mt-4 inline-flex">Open in Maps</a>
                 </div>
-              ) : (
-                <p className="text-white/40">No address set</p>
-              )}
+              ) : <p className="text-white/40">No address set</p>}
             </div>
 
             {job.customer && (
@@ -333,71 +217,26 @@ export default function AdminJobDetailPage() {
                 <p className="text-white font-medium mb-2">{job.customer.name}</p>
                 {job.customer.company && <p className="text-white/60 mb-3">{job.customer.company}</p>}
                 <div className="space-y-2">
-                  {job.customer.phone && (
-                    <a href={`tel:${job.customer.phone}`} className="flex items-center gap-2 text-white/70 hover:text-white">
-                      <Phone className="w-4 h-4" />{job.customer.phone}
-                    </a>
-                  )}
-                  {job.customer.email && (
-                    <a href={`mailto:${job.customer.email}`} className="flex items-center gap-2 text-white/70 hover:text-white">
-                      <Mail className="w-4 h-4" />{job.customer.email}
-                    </a>
-                  )}
+                  {job.customer.phone && <a href={`tel:${job.customer.phone}`} className="flex items-center gap-2 text-white/70 hover:text-white"><Phone className="w-4 h-4" />{job.customer.phone}</a>}
+                  {job.customer.email && <a href={`mailto:${job.customer.email}`} className="flex items-center gap-2 text-white/70 hover:text-white"><Mail className="w-4 h-4" />{job.customer.email}</a>}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Photos */}
           <div className="card p-6">
             <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><Camera className="w-5 h-5" />Photos ({job.photos?.length || 0})</h2>
             {job.photos?.length > 0 ? (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {job.photos.map((photo: any) => (
                   <div key={photo.id} className="aspect-square rounded-lg overflow-hidden bg-dark-bg">
-                    <img 
-                      src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${photo.storage_path}`} 
-                      alt={photo.photo_type} 
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-photos/${photo.storage_path}`} alt={photo.photo_type} className="w-full h-full object-cover" />
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-white/40">No photos uploaded yet</p>
-            )}
+            ) : <p className="text-white/40">No photos uploaded yet</p>}
           </div>
 
-          {/* Checklists */}
-          <div className="card p-6">
-            <h2 className="font-semibold text-white mb-4 flex items-center gap-2"><CheckSquare className="w-5 h-5" />Checklists</h2>
-            {job.checklists?.length > 0 ? (
-              <div className="space-y-4">
-                {job.checklists.map((checklist: any) => {
-                  const checked = checklist.items?.filter((i: any) => i.is_checked).length || 0;
-                  const total = checklist.items?.length || 0;
-                  return (
-                    <div key={checklist.id} className="bg-dark-bg rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="font-medium text-white">{checklist.name}</h3>
-                        <span className="text-sm text-white/60">{checked}/{total}</span>
-                      </div>
-                      <div className="w-full h-2 bg-dark-border rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-brand-500 rounded-full transition-all"
-                          style={{ width: total > 0 ? `${(checked / total) * 100}%` : '0%' }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-white/40">No checklists assigned</p>
-            )}
-          </div>
-
-          {/* Internal Notes */}
           {job.internal_notes && (
             <div className="card p-6 border-amber-500/30 bg-amber-500/5">
               <h2 className="font-semibold text-white mb-2">Internal Notes</h2>
