@@ -1,5 +1,4 @@
 import { createBrowserClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { Database } from '@/types/database';
 import { env } from '@/lib/env';
 
@@ -7,7 +6,7 @@ import { env } from '@/lib/env';
  * Client-side Supabase browser client
  * Use this in Client Components with 'use client' directive
  */
-export const createClient = (): SupabaseClient<Database> => {
+export const createClient = () => {
   return createBrowserClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -15,9 +14,9 @@ export const createClient = (): SupabaseClient<Database> => {
 };
 
 // Singleton for client-side to avoid multiple instances
-let client: SupabaseClient<Database> | null = null;
+let client: ReturnType<typeof createClient> | null = null;
 
-export const getSupabaseClient = (): SupabaseClient<Database> => {
+export const getSupabaseClient = () => {
   if (!client) {
     client = createClient();
   }
