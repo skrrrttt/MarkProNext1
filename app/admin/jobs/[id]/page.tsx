@@ -125,8 +125,13 @@ export default function AdminJobDetailPage() {
   const handleRemoveFlag = async (junctionId: string) => {
     const supabase = getSupabaseClient();
     const { error } = await supabase.from('job_flags_junction').delete().eq('id', junctionId);
-    if (error) toast.error('Failed to remove');
-    else { toast.success('Removed'); mutateFlags(); }
+    if (error) {
+      console.error('Remove flag error:', error);
+      toast.error('Failed to remove: ' + (error.message || 'Unknown error'));
+    } else {
+      toast.success('Removed');
+      mutateFlags();
+    }
   };
 
   const handleAddChecklist = async (templateId: string) => {

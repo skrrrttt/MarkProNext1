@@ -4,33 +4,62 @@ import { useState, useMemo } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, X } from 'lucide-react';
+import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, X, Tag, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminCustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
 
   const { data: customers, mutate } = useSupabaseQuery('admin-customers', async (supabase) => {
     const { data, error } = await supabase
       .from('customers')
       .select('*')
       .order('name');
-    
+
     if (error) console.error('Customers fetch error:', error);
+    return data || [];
+  });
+
+  const { data: allTags } = useSupabaseQuery('all-tags', async (supabase) => {
+    const { data } = await supabase.from('custom_tags').select('*').order('name');
+    return data || [];
+  });
+
+  const { data: customerTagsJunction } = useSupabaseQuery('customer-tags-all', async (supabase) => {
+    const { data } = await supabase.from('customer_tags_junction').select('customer_id, tag_id');
     return data || [];
   });
 
   const filteredCustomers = useMemo(() => {
     if (!customers) return [];
     return customers.filter((customer: any) => {
-      if (!searchQuery) return true;
-      const query = searchQuery.toLowerCase();
-      return customer.name?.toLowerCase().includes(query) || 
-        customer.company?.toLowerCase().includes(query) || 
-        customer.email?.toLowerCase().includes(query);
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch = customer.name?.toLowerCase().includes(query) ||
+          customer.company?.toLowerCase().includes(query) ||
+          customer.email?.toLowerCase().includes(query);
+        if (!matchesSearch) return false;
+      }
+
+      // Tag filter
+      if (selectedTagFilter) {
+        const customerHasTag = customerTagsJunction?.some(
+          (junction: any) => junction.customer_id === customer.id && junction.tag_id === selectedTagFilter
+        );
+        if (!customerHasTag) return false;
+      }
+
+      return true;
     });
-  }, [customers, searchQuery]);
+  }, [customers, searchQuery, selectedTagFilter, customerTagsJunction]);
+
+  const getCustomerTags = (customerId: string) => {
+    const tagIds = customerTagsJunction?.filter((j: any) => j.customer_id === customerId).map((j: any) => j.tag_id) || [];
+    return allTags?.filter((t: any) => tagIds.includes(t.id)) || [];
+  };
 
   const handleCreateCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -74,9 +103,47 @@ export default function AdminCustomersPage() {
         </button>
       </div>
       
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-        <input type="text" placeholder="Search customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10 w-full" />
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+          <input type="text" placeholder="Search customers..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10 w-full" />
+        </div>
+
+        {/* Tag Filter */}
+        {allTags && allTags.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Filter className="w-4 h-4 text-white/40" />
+            <button
+              onClick={() => setSelectedTagFilter(null)}
+              className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
+                !selectedTagFilter
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-dark-bg text-white/60 hover:text-white hover:bg-dark-card-hover'
+              }`}
+            >
+              All
+            </button>
+            {allTags.map((tag: any) => (
+              <button
+                key={tag.id}
+                onClick={() => setSelectedTagFilter(tag.id === selectedTagFilter ? null : tag.id)}
+                className={`text-sm px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                  tag.id === selectedTagFilter
+                    ? 'border'
+                    : 'bg-dark-bg hover:bg-dark-card-hover'
+                }`}
+                style={
+                  tag.id === selectedTagFilter
+                    ? { backgroundColor: `${tag.color}30`, color: tag.color, borderColor: tag.color }
+                    : { color: tag.color }
+                }
+              >
+                <Tag className="w-3 h-3" />
+                {tag.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       
       {!customers && <div className="text-center py-12 text-white/60">Loading...</div>}
@@ -103,10 +170,26 @@ export default function AdminCustomersPage() {
               </div>
               <ChevronRight className="w-5 h-5 text-white/30" />
             </div>
-            <div className="space-y-2 text-sm text-white/60">
-              {customer.phone && <p className="flex items-center gap-2"><Phone className="w-4 h-4" />{customer.phone}</p>}
-              {customer.email && <p className="flex items-center gap-2 truncate"><Mail className="w-4 h-4" />{customer.email}</p>}
-              {customer.address_city && <p className="flex items-center gap-2"><MapPin className="w-4 h-4" />{customer.address_city}, {customer.address_state}</p>}
+            <div className="space-y-2 text-sm">
+              {customer.phone && <p className="flex items-center gap-2 text-white/60"><Phone className="w-4 h-4" />{customer.phone}</p>}
+              {customer.email && <p className="flex items-center gap-2 truncate text-white/60"><Mail className="w-4 h-4" />{customer.email}</p>}
+              {customer.address_city && <p className="flex items-center gap-2 text-white/60"><MapPin className="w-4 h-4" />{customer.address_city}, {customer.address_state}</p>}
+
+              {/* Customer Tags */}
+              {getCustomerTags(customer.id).length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {getCustomerTags(customer.id).map((tag: any) => (
+                    <span
+                      key={tag.id}
+                      className="text-xs px-2 py-0.5 rounded-md flex items-center gap-1"
+                      style={{ backgroundColor: `${tag.color}20`, color: tag.color }}
+                    >
+                      <Tag className="w-2.5 h-2.5" />
+                      {tag.name}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </Link>
         ))}
