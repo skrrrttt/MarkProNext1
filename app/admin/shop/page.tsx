@@ -53,7 +53,7 @@ export default function AdminShopPage() {
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm('Are you sure you want to delete this task?')) return;
 
-    const { error } = await supabase.from('shop_tasks').delete().eq('id', taskId);
+    const { error } = await (supabase.from('shop_tasks') as any).delete().eq('id', taskId);
 
     if (error) {
       toast.error('Failed to delete task');
@@ -67,7 +67,7 @@ export default function AdminShopPage() {
   const handleDeleteEquipment = async (equipmentId: string) => {
     if (!confirm('Are you sure you want to delete this equipment?')) return;
 
-    const { error } = await supabase.from('equipment').delete().eq('id', equipmentId);
+    const { error } = await (supabase.from('equipment') as any).delete().eq('id', equipmentId);
 
     if (error) {
       toast.error('Failed to delete equipment');
@@ -188,34 +188,34 @@ function TaskModal({ task, equipment, users, onClose, onSave }: { task: any; equ
         title: formData.title,
         description: formData.description || null,
         equipment_id: formData.equipment_id || null,
-        task_type: formData.task_type as 'maintenance' | 'repair' | 'inspection' | 'other',
+        task_type: formData.task_type,
         assigned_to: formData.assigned_to || null,
         due_date: formData.due_date || null,
-        status: formData.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+        status: formData.status,
         priority: formData.priority,
         parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
         labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
         notes: formData.notes || null,
       };
-      ({ error } = await supabase.from('shop_tasks').update(updatePayload).eq('id', task.id));
+      ({ error } = await (supabase.from('shop_tasks') as any).update(updatePayload).eq('id', task.id));
     } else {
-      const insertPayload: Database['public']['Tables']['shop_tasks']['Insert'] = {
+      const insertPayload = {
         title: formData.title,
         description: formData.description || null,
         equipment_id: formData.equipment_id || null,
-        task_type: formData.task_type as 'maintenance' | 'repair' | 'inspection' | 'other',
+        task_type: formData.task_type,
         assigned_to: formData.assigned_to || null,
         due_date: formData.due_date || null,
         completed_at: null,
         completed_by: null,
-        status: formData.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+        status: formData.status,
         priority: formData.priority,
         parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
         labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
         notes: formData.notes || null,
         created_by: null,
       };
-      ({ error } = await supabase.from('shop_tasks').insert([insertPayload]));
+      ({ error } = await (supabase.from('shop_tasks') as any).insert([insertPayload]));
     }
 
     setSaving(false);
@@ -334,7 +334,7 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
       const updatePayload = {
         name: formData.name,
         type: formData.type || null,
-        status: formData.status as 'active' | 'in_shop' | 'retired',
+        status: formData.status,
         vin: formData.vin || null,
         serial_number: formData.serial_number || null,
         make: formData.make || null,
@@ -346,12 +346,12 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
         service_interval_miles: formData.service_interval_miles ? parseInt(formData.service_interval_miles as string) : null,
         notes: formData.notes || null,
       };
-      ({ error } = await supabase.from('equipment').update(updatePayload).eq('id', equipment.id));
+      ({ error } = await (supabase.from('equipment') as any).update(updatePayload).eq('id', equipment.id));
     } else {
-      const insertPayload: Database['public']['Tables']['equipment']['Insert'] = {
+      const insertPayload = {
         name: formData.name,
         type: formData.type || null,
-        status: formData.status as 'active' | 'in_shop' | 'retired',
+        status: formData.status,
         vin: formData.vin || null,
         serial_number: formData.serial_number || null,
         make: formData.make || null,
@@ -366,7 +366,7 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
         service_interval_hours: null,
         notes: formData.notes || null,
       };
-      ({ error } = await supabase.from('equipment').insert([insertPayload]));
+      ({ error } = await (supabase.from('equipment') as any).insert([insertPayload]));
     }
 
     setSaving(false);
