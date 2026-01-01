@@ -5,13 +5,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useUIStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { LayoutDashboard, Briefcase, Users, FileText, Wrench, Settings, Menu, X, LogOut, Truck } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, Wrench, Settings, Menu, X, LogOut, Truck } from 'lucide-react';
 
 const navItems = [
   { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/jobs', icon: Briefcase, label: 'Jobs' },
   { href: '/admin/customers', icon: Users, label: 'Customers' },
-  { href: '/admin/invoices', icon: FileText, label: 'Invoices' },
   { href: '/admin/shop', icon: Wrench, label: 'Shop Tasks' },
   { href: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
