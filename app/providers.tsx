@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useUIStore } from '@/lib/store';
 import { onNetworkChange, syncPendingChanges, getDB } from '@/lib/offline/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { AuthProvider } from '@/lib/auth/AuthProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const { setOnline, setSyncStatus, isOnline } = useUIStore();
@@ -47,7 +48,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <>
+    <AuthProvider>
       {/* Offline indicator */}
       {!isOnline && (
         <div className="offline-banner">
@@ -55,6 +56,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         </div>
       )}
       {children}
-    </>
+    </AuthProvider>
   );
 }

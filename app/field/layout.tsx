@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuthStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { Briefcase, ClipboardList, User } from 'lucide-react';
 import Link from 'next/link';
 
@@ -15,19 +15,32 @@ const navItems = [
 export default function FieldLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, role, logout } = useAuthStore();
+  const { user, role, loading, signOut } = useAuth();
 
   useEffect(() => {
-    if (!isAuthenticated) router.push('/');
-    else if (role !== 'field' && role !== 'admin') router.push('/');
-  }, [isAuthenticated, role, router]);
+    if (!loading && (!user || role !== 'field')) {
+      router.push('/login');
+    }
+  }, [user, role, loading, router]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
+        <div className="text-white/60">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-dark-bg field-mode pb-24">
       <header className="sticky top-0 z-40 bg-dark-card/95 backdrop-blur border-b border-dark-border px-4 py-4 pt-safe">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-white">MarkPro</h1>
-          <button onClick={() => { logout(); router.push('/'); }} className="text-white/60 text-sm">Sign Out</button>
+          <button onClick={signOut} className="text-white/60 text-sm">Sign Out</button>
         </div>
       </header>
       <main className="px-4 py-6">{children}</main>

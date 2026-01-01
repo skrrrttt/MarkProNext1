@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, DollarSign, User, Phone, Mail, Flag, Plus, ClipboardList, CheckSquare, Square, Camera, Download, ZoomIn } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, Save, X, MapPin, Calendar, DollarSign, User, Phone, Mail, Flag, Plus, ClipboardList, CheckSquare, Square, Camera, Download, ZoomIn, Upload, FileText, File, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
@@ -20,6 +20,9 @@ export default function AdminJobDetailPage() {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [downloadingPhoto, setDownloadingPhoto] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [deletingFile, setDeletingFile] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<any>(null);
 
   const { data: job, mutate } = useSupabaseQuery(`admin-job-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('jobs').select('*').eq('id', jobId).single();
@@ -58,6 +61,11 @@ export default function AdminJobDetailPage() {
 
   const { data: photos, mutate: mutatePhotos } = useSupabaseQuery(`job-photos-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('job_photos').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
+    return data || [];
+  });
+
+  const { data: files, mutate: mutateFiles } = useSupabaseQuery(`job-files-${jobId}`, async (supabase) => {
+    const { data } = await supabase.from('job_files').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
     return data || [];
   });
 
@@ -114,11 +122,18 @@ export default function AdminJobDetailPage() {
     }
   };
 
-  const handleRemoveFlag = async (junctionId: string) => {
+  const handleRemoveFlag = async (flagId: string) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('job_flags_junction').delete().eq('id', junctionId);
-    if (error) toast.error('Failed to remove');
-    else { toast.success('Removed'); mutateFlags(); }
+    const { error } = await supabase.from('job_flags_junction').delete()
+      .eq('job_id', jobId)
+      .eq('flag_id', flagId);
+    if (error) {
+      console.error('Remove flag error:', error);
+      toast.error('Failed to remove: ' + (error.message || 'Unknown error'));
+    } else {
+      toast.success('Removed');
+      mutateFlags();
+    }
   };
 
   const handleAddChecklist = async (templateId: string) => {
@@ -265,6 +280,131 @@ export default function AdminJobDetailPage() {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Reset input
+    event.target.value = '';
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error('File too large. Maximum size is 10MB');
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const supabase = getSupabaseClient();
+      const timestamp = Date.now();
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const storagePath = `${jobId}/${timestamp}-${sanitizedFileName}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('job-files')
+        .upload(storagePath, file);
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      // Save metadata to database
+      const { error: dbError } = await supabase.from('job_files').insert({
+        job_id: jobId,
+        file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        storage_path: storagePath
+      });
+
+      if (dbError) {
+        // Rollback storage upload if DB insert fails
+        await supabase.storage.from('job-files').remove([storagePath]);
+        throw new Error(dbError.message);
+      }
+
+      toast.success('File uploaded');
+      mutateFiles();
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error?.message || 'Upload failed');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const getFileUrl = (storagePath: string) => {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-files/${storagePath}`;
+  };
+
+  const handleFileClick = (file: any) => {
+    if (file.file_type === 'application/pdf') {
+      setSelectedFile(file);
+    } else {
+      handleDownloadFile(file);
+    }
+  };
+
+  const handleDownloadFile = async (file: any) => {
+    try {
+      const fileUrl = getFileUrl(file.storage_path);
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.file_name;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('File downloaded');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast.error(error?.message || 'Failed to download file');
+    }
+  };
+
+  const handleDeleteFile = async (file: any) => {
+    if (!confirm('Delete this file? This cannot be undone.')) return;
+    setDeletingFile(true);
+    try {
+      const supabase = getSupabaseClient();
+      // Delete from storage
+      await supabase.storage.from('job-files').remove([file.storage_path]);
+      // Delete from database
+      await supabase.from('job_files').delete().eq('id', file.id);
+      toast.success('File deleted');
+      mutateFiles();
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete file');
+    } finally {
+      setDeletingFile(false);
+    }
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) return ImageIcon;
+    if (fileType === 'application/pdf') return FileText;
+    return File;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  };
+
   if (!job) return <div className="text-center py-12 text-white/60">Loading...</div>;
 
   const existingFlagIds = jobFlags?.map((f: any) => f.flag_id) || [];
@@ -348,9 +488,9 @@ export default function AdminJobDetailPage() {
             {/* Flags */}
             <div className="flex flex-wrap gap-2 mb-4">
               {jobFlags?.map((f: any) => f.flag && (
-                <span key={f.id} className="tag flex items-center gap-1" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
+                <span key={f.flag_id} className="tag flex items-center gap-1" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
                   <Flag className="w-3 h-3" />{f.flag.name}
-                  <button onClick={() => handleRemoveFlag(f.id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
+                  <button onClick={() => handleRemoveFlag(f.flag_id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
                 </span>
               ))}
               {availableFlags.length > 0 && (
@@ -484,6 +624,87 @@ export default function AdminJobDetailPage() {
                 <Camera className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p>No photos uploaded yet</p>
                 <p className="text-sm mt-1">Photos will appear here once field workers upload them</p>
+              </div>
+            )}
+          </div>
+
+          {/* Files Section */}
+          <div className="card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-white flex items-center gap-2">
+                <FileText className="w-5 h-5" />Job Files
+              </h2>
+              <label className="btn-primary cursor-pointer">
+                <Upload className="w-4 h-4" />
+                {uploadingFile ? 'Uploading...' : 'Upload File'}
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  disabled={uploadingFile}
+                  className="hidden"
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                />
+              </label>
+            </div>
+
+            {(files?.length ?? 0) > 0 ? (
+              <div className="space-y-2">
+                {files.map((file: any) => {
+                  const FileIcon = getFileIcon(file.file_type);
+                  const isPdf = file.file_type === 'application/pdf';
+                  return (
+                    <div key={file.id} className="bg-dark-bg rounded-lg overflow-hidden hover:bg-dark-card-hover transition-colors">
+                      <button
+                        onClick={() => handleFileClick(file)}
+                        className="w-full p-4 flex items-center gap-4 text-left"
+                      >
+                        <div className="flex-shrink-0 w-10 h-10 bg-brand-500/20 rounded-lg flex items-center justify-center">
+                          <FileIcon className="w-5 h-5 text-brand-500" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-medium truncate">{file.file_name}</p>
+                          <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
+                            <span>{formatFileSize(file.file_size)}</span>
+                            <span>•</span>
+                            <span>{format(new Date(file.created_at), 'MMM d, yyyy')}</span>
+                            {isPdf && <span className="text-brand-500">• Click to view</span>}
+                          </div>
+                        </div>
+                        {!isPdf && <Download className="w-5 h-5 text-white/40 flex-shrink-0" />}
+                        {isPdf && <ZoomIn className="w-5 h-5 text-white/40 flex-shrink-0" />}
+                      </button>
+                      <div className="px-4 pb-4 flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadFile(file);
+                          }}
+                          className="btn-icon text-white/60 hover:text-white"
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteFile(file);
+                          }}
+                          disabled={deletingFile}
+                          className="btn-icon text-white/60 hover:text-red-400 disabled:opacity-50"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-white/40">
+                <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                <p>No files uploaded yet</p>
+                <p className="text-sm mt-1">Upload PDFs, images, or documents for this job</p>
               </div>
             )}
           </div>
@@ -637,6 +858,67 @@ export default function AdminJobDetailPage() {
               <button
                 onClick={() => setSelectedPhoto(null)}
                 className="w-full btn-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Viewer Modal */}
+      {selectedFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setSelectedFile(null)}>
+          <div className="relative max-w-6xl w-full h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-brand-500" />
+                <span className="text-white font-medium">{selectedFile.file_name}</span>
+                <span className="text-sm text-white/60">
+                  {formatFileSize(selectedFile.file_size)} • {format(new Date(selectedFile.created_at), 'MMM d, yyyy')}
+                </span>
+              </div>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="flex-1 bg-dark-bg rounded-xl overflow-hidden mb-4">
+              <iframe
+                src={getFileUrl(selectedFile.storage_path)}
+                className="w-full h-full"
+                title={selectedFile.file_name}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleDownloadFile(selectedFile)}
+                className="flex-1 btn-primary"
+              >
+                <Download className="w-5 h-5" />
+                Download
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteFile(selectedFile);
+                  setSelectedFile(null);
+                }}
+                disabled={deletingFile}
+                className="flex-1 btn-secondary bg-red-500/10 hover:bg-red-500/20 border-red-500/30 text-red-400 disabled:opacity-50"
+              >
+                <Trash2 className="w-5 h-5" />
+                {deletingFile ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="flex-1 btn-secondary"
               >
                 Close
               </button>

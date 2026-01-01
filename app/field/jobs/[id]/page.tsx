@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSupabaseQuery, optimisticUpdate } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { savePhotoOffline, updateJobOffline, isOnline } from '@/lib/offline/storage';
-import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn, Download } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Mail, Calendar, Clock, Camera, Check, ChevronDown, ChevronUp, Navigation, AlertTriangle, X, Trash2, ZoomIn, Download, FileText, File, Image as ImageIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
@@ -21,10 +21,16 @@ export default function FieldJobDetailPage() {
   const [deletingPhoto, setDeletingPhoto] = useState(false);
   const [downloadingPhoto, setDownloadingPhoto] = useState(false);
   const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
+  const [selectedFile, setSelectedFile] = useState<any>(null);
 
   const { data: job, mutate } = useSupabaseQuery(`field-job-${jobId}`, async (supabase) => {
     const { data } = await supabase.from('jobs').select(`*, stage:job_stages(*), customer:customers(*), checklists:job_checklists(*, items:job_checklist_items(*)), photos:job_photos(*)`).eq('id', jobId).single();
     return data;
+  });
+
+  const { data: files } = useSupabaseQuery(`field-job-files-${jobId}`, async (supabase) => {
+    const { data } = await supabase.from('job_files').select('*').eq('job_id', jobId).order('created_at', { ascending: false });
+    return data || [];
   });
 
   const handleToggleItem = useCallback(async (checklistId: string, itemId: string, currentChecked: boolean) => {
@@ -186,6 +192,59 @@ export default function FieldJobDetailPage() {
     return colors[type] || colors.other;
   };
 
+  const getFileUrl = (storagePath: string) => {
+    return `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-files/${storagePath}`;
+  };
+
+  const handleFileClick = (file: any) => {
+    if (file.file_type === 'application/pdf') {
+      setSelectedFile(file);
+    } else {
+      handleDownloadFile(file);
+    }
+  };
+
+  const handleDownloadFile = useCallback(async (file: any) => {
+    try {
+      const fileUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/job-files/${file.storage_path}`;
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.file_name;
+
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast.success('File downloaded');
+    } catch (error: any) {
+      console.error('Download error:', error);
+      toast.error(error?.message || 'Failed to download file');
+    }
+  }, []);
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) return ImageIcon;
+    if (fileType === 'application/pdf') return FileText;
+    return File;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
+  };
+
   if (!job) return <div className="space-y-4"><div className="skeleton h-48 rounded-xl" /><div className="skeleton h-32 rounded-xl" /><div className="skeleton h-64 rounded-xl" /></div>;
 
   return (
@@ -285,6 +344,43 @@ export default function FieldJobDetailPage() {
         )}
       </div>
 
+      {/* Files Section */}
+      {files && files.length > 0 && (
+        <div className="card p-5">
+          <h2 className="font-semibold text-white mb-4 flex items-center gap-2">
+            <FileText className="w-5 h-5" />Job Files
+          </h2>
+          <div className="space-y-2">
+            {files.map((file: any) => {
+              const FileIcon = getFileIcon(file.file_type);
+              const isPdf = file.file_type === 'application/pdf';
+              return (
+                <button
+                  key={file.id}
+                  onClick={() => handleFileClick(file)}
+                  className="w-full bg-dark-bg rounded-lg p-4 flex items-center gap-4 active:bg-dark-card-hover transition-colors"
+                >
+                  <div className="flex-shrink-0 w-10 h-10 bg-brand-500/20 rounded-lg flex items-center justify-center">
+                    <FileIcon className="w-5 h-5 text-brand-500" />
+                  </div>
+                  <div className="flex-1 min-w-0 text-left">
+                    <p className="text-white font-medium truncate">{file.file_name}</p>
+                    <div className="flex items-center gap-3 text-xs text-white/40 mt-1">
+                      <span>{formatFileSize(file.file_size)}</span>
+                      <span>•</span>
+                      <span>{format(new Date(file.created_at), 'MMM d, yyyy')}</span>
+                      {isPdf && <span className="text-brand-500">• Tap to view</span>}
+                    </div>
+                  </div>
+                  {!isPdf && <Download className="w-5 h-5 text-white/40 flex-shrink-0" />}
+                  {isPdf && <ZoomIn className="w-5 h-5 text-white/40 flex-shrink-0" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-4">
         <h2 className="font-semibold text-white text-lg">Checklists</h2>
         {job.checklists?.map((checklist: any) => {
@@ -379,6 +475,53 @@ export default function FieldJobDetailPage() {
               </div>
               <button
                 onClick={() => setSelectedPhoto(null)}
+                className="w-full btn-field-secondary"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* File Viewer Modal */}
+      {selectedFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" onClick={() => setSelectedFile(null)}>
+          <div className="relative max-w-6xl w-full h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-brand-500" />
+                <span className="text-white font-medium truncate">{selectedFile.file_name}</span>
+              </div>
+              <button
+                onClick={() => setSelectedFile(null)}
+                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+
+            {/* PDF Viewer */}
+            <div className="flex-1 bg-dark-bg rounded-xl overflow-hidden mb-4">
+              <iframe
+                src={getFileUrl(selectedFile.storage_path)}
+                className="w-full h-full"
+                title={selectedFile.file_name}
+              />
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleDownloadFile(selectedFile)}
+                className="w-full btn-field-primary"
+              >
+                <Download className="w-5 h-5" />
+                Download
+              </button>
+              <button
+                onClick={() => setSelectedFile(null)}
                 className="w-full btn-field-secondary"
               >
                 Close
