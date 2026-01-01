@@ -5,6 +5,7 @@ import { User, AuthChangeEvent, Session } from '@supabase/supabase-js';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
 
+// User role types for role-based access control
 type UserRole = 'admin' | 'office' | 'field' | null;
 
 interface AuthContextType {
