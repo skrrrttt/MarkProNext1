@@ -181,13 +181,18 @@ function TaskModal({ task, equipment, users, onClose, onSave }: { task: any; equ
     e.preventDefault();
     setSaving(true);
 
-    const payload = {
-      ...formData,
+    const payload: any = {
+      title: formData.title,
+      description: formData.description || null,
       equipment_id: formData.equipment_id || null,
+      task_type: formData.task_type,
       assigned_to: formData.assigned_to || null,
       due_date: formData.due_date || null,
+      status: formData.status,
+      priority: formData.priority,
       parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
       labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
+      notes: formData.notes || null,
     };
 
     let error;
@@ -309,14 +314,21 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
     e.preventDefault();
     setSaving(true);
 
-    const payload = {
-      ...formData,
+    const payload: any = {
+      name: formData.name,
+      type: formData.type,
+      status: formData.status,
+      vin_serial: formData.vin_serial || null,
+      make: formData.make || null,
+      model: formData.model || null,
       year: formData.year ? parseInt(formData.year as string) : null,
+      license_plate: formData.license_plate || null,
+      purchase_date: formData.purchase_date || null,
       purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price as string) : null,
       current_mileage: formData.current_mileage ? parseFloat(formData.current_mileage as string) : null,
-      next_service_mileage: formData.next_service_mileage ? parseFloat(formData.next_service_mileage as string) : null,
-      purchase_date: formData.purchase_date || null,
       next_service_date: formData.next_service_date || null,
+      next_service_mileage: formData.next_service_mileage ? parseFloat(formData.next_service_mileage as string) : null,
+      notes: formData.notes || null,
     };
 
     let error;
