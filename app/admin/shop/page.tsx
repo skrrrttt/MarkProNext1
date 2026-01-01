@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Plus, Search, Wrench, Truck, Clock, CheckCircle, AlertTriangle, Calendar, User, Edit2, Trash2, X } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import type { Database } from '@/types/database';
 
 const taskTypeConfig: Record<string, { label: string; color: string; icon: any }> = {
   maintenance: { label: 'Maintenance', color: '#3b82f6', icon: Wrench },
@@ -181,23 +182,27 @@ function TaskModal({ task, equipment, users, onClose, onSave }: { task: any; equ
     e.preventDefault();
     setSaving(true);
 
-    const payload: any = {
+    const payload: Database['public']['Tables']['shop_tasks']['Insert'] = {
       title: formData.title,
       description: formData.description || null,
       equipment_id: formData.equipment_id || null,
-      task_type: formData.task_type,
+      task_type: formData.task_type as 'maintenance' | 'repair' | 'inspection' | 'other',
       assigned_to: formData.assigned_to || null,
       due_date: formData.due_date || null,
-      status: formData.status,
+      completed_at: null,
+      completed_by: null,
+      status: formData.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
       priority: formData.priority,
       parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
       labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
       notes: formData.notes || null,
+      created_by: null,
     };
 
     let error;
     if (task) {
-      ({ error } = await supabase.from('shop_tasks').update(payload).eq('id', task.id));
+      const updatePayload: Database['public']['Tables']['shop_tasks']['Update'] = payload;
+      ({ error } = await supabase.from('shop_tasks').update(updatePayload).eq('id', task.id));
     } else {
       ({ error } = await supabase.from('shop_tasks').insert([payload]));
     }
@@ -295,16 +300,15 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
     name: equipment?.name || '',
     type: equipment?.type || 'vehicle',
     status: equipment?.status || 'active',
-    vin_serial: equipment?.vin_serial || '',
+    vin: equipment?.vin || '',
+    serial_number: equipment?.serial_number || '',
     make: equipment?.make || '',
     model: equipment?.model || '',
     year: equipment?.year || '',
     license_plate: equipment?.license_plate || '',
-    purchase_date: equipment?.purchase_date || '',
-    purchase_price: equipment?.purchase_price || '',
-    current_mileage: equipment?.current_mileage || '',
+    current_miles: equipment?.current_miles || '',
     next_service_date: equipment?.next_service_date || '',
-    next_service_mileage: equipment?.next_service_mileage || '',
+    service_interval_miles: equipment?.service_interval_miles || '',
     notes: equipment?.notes || '',
   });
   const [saving, setSaving] = useState(false);
@@ -314,26 +318,29 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
     e.preventDefault();
     setSaving(true);
 
-    const payload: any = {
+    const payload: Database['public']['Tables']['equipment']['Insert'] = {
       name: formData.name,
-      type: formData.type,
-      status: formData.status,
-      vin_serial: formData.vin_serial || null,
+      type: formData.type || null,
+      status: formData.status as 'active' | 'in_shop' | 'retired',
+      vin: formData.vin || null,
+      serial_number: formData.serial_number || null,
       make: formData.make || null,
       model: formData.model || null,
       year: formData.year ? parseInt(formData.year as string) : null,
       license_plate: formData.license_plate || null,
-      purchase_date: formData.purchase_date || null,
-      purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price as string) : null,
-      current_mileage: formData.current_mileage ? parseFloat(formData.current_mileage as string) : null,
+      current_miles: formData.current_miles ? parseInt(formData.current_miles as string) : null,
+      current_hours: null,
+      last_service_date: null,
       next_service_date: formData.next_service_date || null,
-      next_service_mileage: formData.next_service_mileage ? parseFloat(formData.next_service_mileage as string) : null,
+      service_interval_miles: formData.service_interval_miles ? parseInt(formData.service_interval_miles as string) : null,
+      service_interval_hours: null,
       notes: formData.notes || null,
     };
 
     let error;
     if (equipment) {
-      ({ error } = await supabase.from('equipment').update(payload).eq('id', equipment.id));
+      const updatePayload: Database['public']['Tables']['equipment']['Update'] = payload;
+      ({ error } = await supabase.from('equipment').update(updatePayload).eq('id', equipment.id));
     } else {
       ({ error } = await supabase.from('equipment').insert([payload]));
     }
@@ -377,22 +384,18 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">VIN/Serial</label>
-              <input type="text" value={formData.vin_serial} onChange={(e) => setFormData({ ...formData, vin_serial: e.target.value })} className="input" />
+              <label className="block text-sm font-medium text-white/80 mb-2">VIN</label>
+              <input type="text" value={formData.vin} onChange={(e) => setFormData({ ...formData, vin: e.target.value })} className="input" />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">Serial Number</label>
+              <input type="text" value={formData.serial_number} onChange={(e) => setFormData({ ...formData, serial_number: e.target.value })} className="input" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-white/80 mb-2">License Plate</label>
               <input type="text" value={formData.license_plate} onChange={(e) => setFormData({ ...formData, license_plate: e.target.value })} className="input" />
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">Make</label>
-              <input type="text" value={formData.make} onChange={(e) => setFormData({ ...formData, make: e.target.value })} className="input" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">Model</label>
-              <input type="text" value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} className="input" />
             </div>
             <div>
               <label className="block text-sm font-medium text-white/80 mb-2">Year</label>
@@ -401,26 +404,26 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">Purchase Date</label>
-              <input type="date" value={formData.purchase_date} onChange={(e) => setFormData({ ...formData, purchase_date: e.target.value })} className="input" />
+              <label className="block text-sm font-medium text-white/80 mb-2">Make</label>
+              <input type="text" value={formData.make} onChange={(e) => setFormData({ ...formData, make: e.target.value })} className="input" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">Purchase Price</label>
-              <input type="number" step="0.01" value={formData.purchase_price} onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })} className="input" placeholder="0.00" />
+              <label className="block text-sm font-medium text-white/80 mb-2">Model</label>
+              <input type="text" value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} className="input" />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">Current Mileage</label>
-              <input type="number" value={formData.current_mileage} onChange={(e) => setFormData({ ...formData, current_mileage: e.target.value })} className="input" />
+              <label className="block text-sm font-medium text-white/80 mb-2">Current Miles</label>
+              <input type="number" value={formData.current_miles} onChange={(e) => setFormData({ ...formData, current_miles: e.target.value })} className="input" />
             </div>
             <div>
               <label className="block text-sm font-medium text-white/80 mb-2">Next Service Date</label>
               <input type="date" value={formData.next_service_date} onChange={(e) => setFormData({ ...formData, next_service_date: e.target.value })} className="input" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-white/80 mb-2">Next Service Mileage</label>
-              <input type="number" value={formData.next_service_mileage} onChange={(e) => setFormData({ ...formData, next_service_mileage: e.target.value })} className="input" />
+              <label className="block text-sm font-medium text-white/80 mb-2">Service Interval (miles)</label>
+              <input type="number" value={formData.service_interval_miles} onChange={(e) => setFormData({ ...formData, service_interval_miles: e.target.value })} className="input" />
             </div>
           </div>
           <div>
