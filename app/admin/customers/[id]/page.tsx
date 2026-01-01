@@ -71,9 +71,11 @@ export default function CustomerDetailPage() {
     }
   };
 
-  const handleRemoveTag = async (junctionId: string) => {
+  const handleRemoveTag = async (tagId: string) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('customer_tags_junction').delete().eq('id', junctionId);
+    const { error } = await supabase.from('customer_tags_junction').delete()
+      .eq('customer_id', customerId)
+      .eq('tag_id', tagId);
     if (error) {
       console.error('Remove tag error:', error);
       toast.error('Failed to remove: ' + (error.message || 'Unknown error'));
@@ -133,9 +135,9 @@ export default function CustomerDetailPage() {
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mt-3">
                 {customerTags?.map((t: any) => t.tag && (
-                  <span key={t.id} className="tag flex items-center gap-1" style={{ backgroundColor: `${t.tag.color}20`, color: t.tag.color }}>
+                  <span key={t.tag_id} className="tag flex items-center gap-1" style={{ backgroundColor: `${t.tag.color}20`, color: t.tag.color }}>
                     <Tag className="w-3 h-3" />{t.tag.name}
-                    <button onClick={() => handleRemoveTag(t.id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
+                    <button onClick={() => handleRemoveTag(t.tag_id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
                   </span>
                 ))}
                 {availableTags.length > 0 && (

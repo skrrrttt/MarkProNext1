@@ -122,9 +122,11 @@ export default function AdminJobDetailPage() {
     }
   };
 
-  const handleRemoveFlag = async (junctionId: string) => {
+  const handleRemoveFlag = async (flagId: string) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('job_flags_junction').delete().eq('id', junctionId);
+    const { error } = await supabase.from('job_flags_junction').delete()
+      .eq('job_id', jobId)
+      .eq('flag_id', flagId);
     if (error) {
       console.error('Remove flag error:', error);
       toast.error('Failed to remove: ' + (error.message || 'Unknown error'));
@@ -486,9 +488,9 @@ export default function AdminJobDetailPage() {
             {/* Flags */}
             <div className="flex flex-wrap gap-2 mb-4">
               {jobFlags?.map((f: any) => f.flag && (
-                <span key={f.id} className="tag flex items-center gap-1" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
+                <span key={f.flag_id} className="tag flex items-center gap-1" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
                   <Flag className="w-3 h-3" />{f.flag.name}
-                  <button onClick={() => handleRemoveFlag(f.id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
+                  <button onClick={() => handleRemoveFlag(f.flag_id)} className="hover:bg-white/20 rounded p-0.5"><X className="w-3 h-3" /></button>
                 </span>
               ))}
               {availableFlags.length > 0 && (
