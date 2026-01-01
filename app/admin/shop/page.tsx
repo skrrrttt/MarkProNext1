@@ -182,29 +182,40 @@ function TaskModal({ task, equipment, users, onClose, onSave }: { task: any; equ
     e.preventDefault();
     setSaving(true);
 
-    const payload: Database['public']['Tables']['shop_tasks']['Insert'] = {
-      title: formData.title,
-      description: formData.description || null,
-      equipment_id: formData.equipment_id || null,
-      task_type: formData.task_type as 'maintenance' | 'repair' | 'inspection' | 'other',
-      assigned_to: formData.assigned_to || null,
-      due_date: formData.due_date || null,
-      completed_at: null,
-      completed_by: null,
-      status: formData.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
-      priority: formData.priority,
-      parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
-      labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
-      notes: formData.notes || null,
-      created_by: null,
-    };
-
     let error;
     if (task) {
-      const updatePayload: Database['public']['Tables']['shop_tasks']['Update'] = payload;
+      const updatePayload = {
+        title: formData.title,
+        description: formData.description || null,
+        equipment_id: formData.equipment_id || null,
+        task_type: formData.task_type as 'maintenance' | 'repair' | 'inspection' | 'other',
+        assigned_to: formData.assigned_to || null,
+        due_date: formData.due_date || null,
+        status: formData.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+        priority: formData.priority,
+        parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
+        labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
+        notes: formData.notes || null,
+      };
       ({ error } = await supabase.from('shop_tasks').update(updatePayload).eq('id', task.id));
     } else {
-      ({ error } = await supabase.from('shop_tasks').insert([payload]));
+      const insertPayload: Database['public']['Tables']['shop_tasks']['Insert'] = {
+        title: formData.title,
+        description: formData.description || null,
+        equipment_id: formData.equipment_id || null,
+        task_type: formData.task_type as 'maintenance' | 'repair' | 'inspection' | 'other',
+        assigned_to: formData.assigned_to || null,
+        due_date: formData.due_date || null,
+        completed_at: null,
+        completed_by: null,
+        status: formData.status as 'pending' | 'in_progress' | 'completed' | 'cancelled',
+        priority: formData.priority,
+        parts_cost: formData.parts_cost ? parseFloat(formData.parts_cost as string) : null,
+        labor_hours: formData.labor_hours ? parseFloat(formData.labor_hours as string) : null,
+        notes: formData.notes || null,
+        created_by: null,
+      };
+      ({ error } = await supabase.from('shop_tasks').insert([insertPayload]));
     }
 
     setSaving(false);
@@ -318,31 +329,44 @@ function EquipmentModal({ equipment, onClose, onSave }: { equipment: any; onClos
     e.preventDefault();
     setSaving(true);
 
-    const payload: Database['public']['Tables']['equipment']['Insert'] = {
-      name: formData.name,
-      type: formData.type || null,
-      status: formData.status as 'active' | 'in_shop' | 'retired',
-      vin: formData.vin || null,
-      serial_number: formData.serial_number || null,
-      make: formData.make || null,
-      model: formData.model || null,
-      year: formData.year ? parseInt(formData.year as string) : null,
-      license_plate: formData.license_plate || null,
-      current_miles: formData.current_miles ? parseInt(formData.current_miles as string) : null,
-      current_hours: null,
-      last_service_date: null,
-      next_service_date: formData.next_service_date || null,
-      service_interval_miles: formData.service_interval_miles ? parseInt(formData.service_interval_miles as string) : null,
-      service_interval_hours: null,
-      notes: formData.notes || null,
-    };
-
     let error;
     if (equipment) {
-      const updatePayload: Database['public']['Tables']['equipment']['Update'] = payload;
+      const updatePayload = {
+        name: formData.name,
+        type: formData.type || null,
+        status: formData.status as 'active' | 'in_shop' | 'retired',
+        vin: formData.vin || null,
+        serial_number: formData.serial_number || null,
+        make: formData.make || null,
+        model: formData.model || null,
+        year: formData.year ? parseInt(formData.year as string) : null,
+        license_plate: formData.license_plate || null,
+        current_miles: formData.current_miles ? parseInt(formData.current_miles as string) : null,
+        next_service_date: formData.next_service_date || null,
+        service_interval_miles: formData.service_interval_miles ? parseInt(formData.service_interval_miles as string) : null,
+        notes: formData.notes || null,
+      };
       ({ error } = await supabase.from('equipment').update(updatePayload).eq('id', equipment.id));
     } else {
-      ({ error } = await supabase.from('equipment').insert([payload]));
+      const insertPayload: Database['public']['Tables']['equipment']['Insert'] = {
+        name: formData.name,
+        type: formData.type || null,
+        status: formData.status as 'active' | 'in_shop' | 'retired',
+        vin: formData.vin || null,
+        serial_number: formData.serial_number || null,
+        make: formData.make || null,
+        model: formData.model || null,
+        year: formData.year ? parseInt(formData.year as string) : null,
+        license_plate: formData.license_plate || null,
+        current_miles: formData.current_miles ? parseInt(formData.current_miles as string) : null,
+        current_hours: null,
+        last_service_date: null,
+        next_service_date: formData.next_service_date || null,
+        service_interval_miles: formData.service_interval_miles ? parseInt(formData.service_interval_miles as string) : null,
+        service_interval_hours: null,
+        notes: formData.notes || null,
+      };
+      ({ error } = await supabase.from('equipment').insert([insertPayload]));
     }
 
     setSaving(false);
