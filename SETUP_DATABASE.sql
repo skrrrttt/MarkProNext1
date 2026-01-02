@@ -8,14 +8,14 @@
 -- Step 1: Create Job Stages (if they don't exist)
 -- These control the workflow and what field workers can see
 
-INSERT INTO job_stages (name, color, display_order, is_field_visible, is_default)
+INSERT INTO job_stages (name, color, sort_order, is_field_visible, is_active)
 VALUES
   ('New', '#64748b', 0, false, true),           -- Admin only - not field visible
-  ('Scheduled', '#3b82f6', 1, true, false),     -- Field visible
-  ('On Route', '#8b5cf6', 2, true, false),      -- Field visible
-  ('In Progress', '#f59e0b', 3, true, false),   -- Field visible
-  ('Completed', '#10b981', 4, true, false),     -- Field visible
-  ('Cancelled', '#ef4444', 5, false, false)     -- Admin only - not field visible
+  ('Scheduled', '#3b82f6', 1, true, true),      -- Field visible
+  ('On Route', '#8b5cf6', 2, true, true),       -- Field visible
+  ('In Progress', '#f59e0b', 3, true, true),    -- Field visible
+  ('Completed', '#10b981', 4, true, true),      -- Field visible
+  ('Cancelled', '#ef4444', 5, false, true)      -- Admin only - not field visible
 ON CONFLICT (name) DO NOTHING;
 
 -- Step 2: Get the stage IDs (we'll use them for sample jobs)
@@ -138,9 +138,10 @@ SELECT
   name,
   color,
   is_field_visible,
-  display_order
+  sort_order,
+  is_active
 FROM job_stages
-ORDER BY display_order;
+ORDER BY sort_order;
 
 -- Check jobs
 SELECT
