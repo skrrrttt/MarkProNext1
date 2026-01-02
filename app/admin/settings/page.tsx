@@ -36,7 +36,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_tags').insert({
+    const { error } = await (supabase.from('custom_tags') as any).insert({
       name: formData.get('name') as string,
       color: formData.get('color') as string || '#3b82f6',
       category: 'customer',
@@ -48,7 +48,7 @@ export default function AdminSettingsPage() {
   const handleDeleteTag = async (id: string) => {
     if (!confirm('Delete this tag?')) return;
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_tags').delete().eq('id', id);
+    const { error } = await (supabase.from('custom_tags') as any).delete().eq('id', id);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateTags(); }
   };
 
@@ -57,7 +57,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_flags').insert({
+    const { error } = await (supabase.from('custom_flags') as any).insert({
       name: formData.get('name') as string,
       color: formData.get('color') as string || '#ef4444',
       icon: 'flag',
@@ -69,14 +69,14 @@ export default function AdminSettingsPage() {
   const handleDeleteFlag = async (id: string) => {
     if (!confirm('Delete this flag?')) return;
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_flags').delete().eq('id', id);
+    const { error } = await (supabase.from('custom_flags') as any).delete().eq('id', id);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateFlags(); }
   };
 
   // Stage handlers
   const handleToggleStageVisibility = async (id: string, currentValue: boolean) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('job_stages').update({ is_field_visible: !currentValue }).eq('id', id);
+    const { error } = await (supabase.from('job_stages') as any).update({ is_field_visible: !currentValue }).eq('id', id);
     if (error) toast.error('Failed to update'); else mutateStages();
   };
 
@@ -85,7 +85,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('checklist_templates').insert({
+    const { error } = await (supabase.from('checklist_templates') as any).insert({
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
     });
@@ -97,8 +97,8 @@ export default function AdminSettingsPage() {
     if (!confirm('Delete this checklist template?')) return;
     const supabase = getSupabaseClient();
     // Delete items first
-    await supabase.from('checklist_template_items').delete().eq('template_id', id);
-    const { error } = await supabase.from('checklist_templates').delete().eq('id', id);
+    await (supabase.from('checklist_template_items') as any).delete().eq('template_id', id);
+    const { error } = await (supabase.from('checklist_templates') as any).delete().eq('id', id);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateChecklists(); }
   };
 
@@ -107,8 +107,8 @@ export default function AdminSettingsPage() {
     const supabase = getSupabaseClient();
     const template = checklistTemplates?.find((t: any) => t.id === templateId);
     const sortOrder = template?.items?.length || 0;
-    
-    const { error } = await supabase.from('checklist_template_items').insert({
+
+    const { error } = await (supabase.from('checklist_template_items') as any).insert({
       template_id: templateId,
       name: itemName,
       sort_order: sortOrder,
@@ -119,7 +119,7 @@ export default function AdminSettingsPage() {
 
   const handleDeleteChecklistItem = async (itemId: string) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('checklist_template_items').delete().eq('id', itemId);
+    const { error } = await (supabase.from('checklist_template_items') as any).delete().eq('id', itemId);
     if (error) toast.error('Failed to delete'); else { mutateChecklists(); }
   };
 
