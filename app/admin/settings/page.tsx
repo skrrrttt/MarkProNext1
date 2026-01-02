@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Building2, Users, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2 } from 'lucide-react';
+import { Building2, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminSettingsPage() {
@@ -125,7 +125,6 @@ export default function AdminSettingsPage() {
 
   const tabs = [
     { id: 'company', label: 'Company', icon: Building2 },
-    { id: 'users', label: 'Users & Passwords', icon: Users },
     { id: 'tags', label: 'Tags', icon: Tag },
     { id: 'flags', label: 'Job Flags', icon: Flag },
     { id: 'stages', label: 'Job Stages', icon: ClipboardList },
@@ -161,18 +160,6 @@ export default function AdminSettingsPage() {
                 <div><label className="label">Address</label><input type="text" className="input" placeholder="123 Main St" /></div>
               </div>
               <button className="btn-primary" onClick={() => toast.success('Saved')}><Save className="w-4 h-4" />Save</button>
-            </div>
-          )}
-
-          {activeTab === 'users' && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-white">Login Passwords</h2>
-              <p className="text-white/60 text-sm">Simple password auth for your team</p>
-              <div className="space-y-4">
-                <div><label className="label">Admin Password</label><input type="text" className="input" defaultValue="markproadmin" /></div>
-                <div><label className="label">Field Password</label><input type="text" className="input" defaultValue="markpro2025" /></div>
-              </div>
-              <button className="btn-primary" onClick={() => toast.success('Updated')}><Save className="w-4 h-4" />Save</button>
             </div>
           )}
 
