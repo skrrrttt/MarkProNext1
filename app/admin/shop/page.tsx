@@ -29,7 +29,14 @@ export default function AdminShopPage() {
   const supabase = createClient();
 
   const { data: tasks, mutate: mutateTasks } = useSupabaseQuery('shop-tasks', async (supabase) => {
-    const { data } = await supabase.from('shop_tasks').select(`*, equipment(id, name, type), assigned_to:user_profiles(id, full_name)`).order('due_date', { ascending: true });
+    const { data } = await supabase
+      .from('shop_tasks')
+      .select(`
+        *,
+        equipment!left(id, name, type),
+        assigned_user:user_profiles!assigned_to!left(id, full_name)
+      `)
+      .order('due_date', { ascending: true, nullsFirst: false });
     return data || [];
   });
 
@@ -149,7 +156,7 @@ function TaskCard({ task, onEdit, onDelete }: { task: any; onEdit: () => void; o
           {task.equipment && <p className="text-sm text-white/60">{task.equipment.name}</p>}
           <div className="flex items-center gap-3 mt-2 text-xs text-white/40">
             {task.due_date && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{format(new Date(task.due_date), 'MMM d')}</span>}
-            {task.assigned_to && <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.assigned_to.full_name}</span>}
+            {task.assigned_user && <span className="flex items-center gap-1"><User className="w-3 h-3" />{task.assigned_user.full_name}</span>}
           </div>
         </div>
         <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
@@ -167,7 +174,7 @@ function TaskModal({ task, equipment, users, onClose, onSave }: { task: any; equ
     description: task?.description || '',
     equipment_id: task?.equipment_id || '',
     task_type: task?.task_type || 'maintenance',
-    assigned_to: task?.assigned_to?.id || '',
+    assigned_to: task?.assigned_user?.id || task?.assigned_to || '',
     due_date: task?.due_date || '',
     status: task?.status || 'pending',
     priority: task?.priority || 0,
