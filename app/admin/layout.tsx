@@ -82,6 +82,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <header className="h-16 bg-dark-card/50 backdrop-blur border-b border-dark-border flex items-center px-4 sticky top-0 z-30">
           <button onClick={toggleSidebar} className="btn-icon lg:hidden mr-4"><Menu className="w-5 h-5" /></button>
           <div className="flex-1" />
+          <button onClick={signOut} className="btn-icon lg:hidden text-white/60 hover:text-white" title="Sign Out"><LogOut className="w-5 h-5" /></button>
         </header>
         <main className="flex-1 p-6 overflow-auto">{children}</main>
       </div>
