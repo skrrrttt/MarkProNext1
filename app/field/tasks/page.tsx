@@ -26,9 +26,10 @@ export default function FieldTasksPage() {
       .from('shop_tasks')
       .select(`
         *,
-        equipment!left(id, name, type)
+        equipment!left(id, name, type),
+        assigned_user:user_profiles!assigned_to!left(id, full_name)
       `)
-      .eq('assigned_to', user?.id)
+      .or(`assigned_to.eq.${user?.id},assigned_to.is.null`)
       .order('due_date', { ascending: true, nullsFirst: false });
     return data || [];
   });
@@ -64,8 +65,8 @@ export default function FieldTasksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">My Shop Tasks</h1>
-        <p className="text-white/60 mt-1">Tasks assigned to you</p>
+        <h1 className="text-2xl font-bold text-white">Shop Tasks</h1>
+        <p className="text-white/60 mt-1">Your assigned tasks and available work</p>
       </div>
 
       <div className="relative max-w-md">
@@ -137,7 +138,12 @@ export default function FieldTasksPage() {
   );
 }
 
-function TaskCard({ task, onClick }: { task: any; onClick: () => void }) {
+interface TaskCardProps {
+  task: any;
+  onClick: () => void;
+}
+
+function TaskCard({ task, onClick }: TaskCardProps) {
   const typeConfig = taskTypeConfig[task.task_type] || taskTypeConfig.other;
   const TypeIcon = typeConfig.icon;
 
@@ -155,6 +161,14 @@ function TaskCard({ task, onClick }: { task: any; onClick: () => void }) {
         </div>
         <div className="flex-1 min-w-0">
           <h4 className="font-medium text-white truncate">{task.title}</h4>
+          {task.assigned_user && (
+            <p className="text-xs text-white/40 mt-1">
+              Assigned to {task.assigned_user.full_name}
+            </p>
+          )}
+          {!task.assigned_user && task.assigned_to === null && (
+            <p className="text-xs text-amber-400 mt-1">Available</p>
+          )}
           {task.equipment && (
             <p className="text-sm text-white/60 flex items-center gap-1 mt-1">
               <Truck className="w-3 h-3" />
@@ -173,7 +187,13 @@ function TaskCard({ task, onClick }: { task: any; onClick: () => void }) {
   );
 }
 
-function TaskDetailModal({ task, onClose, onStatusUpdate }: { task: any; onClose: () => void; onStatusUpdate: (taskId: string, status: string) => void }) {
+interface TaskDetailModalProps {
+  task: any;
+  onClose: () => void;
+  onStatusUpdate: (taskId: string, status: string) => void;
+}
+
+function TaskDetailModal({ task, onClose, onStatusUpdate }: TaskDetailModalProps) {
   const typeConfig = taskTypeConfig[task.task_type] || taskTypeConfig.other;
   const TypeIcon = typeConfig.icon;
 
@@ -203,12 +223,19 @@ function TaskDetailModal({ task, onClose, onStatusUpdate }: { task: any; onClose
             </div>
           )}
 
+          {task.assigned_user && (
+            <div>
+              <h3 className="text-sm font-medium text-white/80 mb-2">Assigned To</h3>
+              <p className="text-white/60">{task.assigned_user.full_name}</p>
+            </div>
+          )}
+
           {task.equipment && (
             <div>
               <h3 className="text-sm font-medium text-white/80 mb-2">Equipment</h3>
               <div className="flex items-center gap-2 text-white/60">
                 <Truck className="w-4 h-4" />
-                {task.equipment.name} <span className="text-white/40">({task.equipment.type})</span>
+                {task.equipment.name} {task.equipment.type && <span className="text-white/40">({task.equipment.type})</span>}
               </div>
             </div>
           )}

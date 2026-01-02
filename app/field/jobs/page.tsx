@@ -10,8 +10,23 @@ export default function FieldJobsPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: jobs, error, isLoading, mutate } = useSupabaseQuery('field-jobs', async (supabase) => {
-    const { data } = await supabase.from('jobs').select(`id, name, job_address_street, job_address_city, scheduled_date, scheduled_time_start, photos_required_before, photos_required_after, stage:job_stages(name, color, is_field_visible), customer:customers(name, company), checklists:job_checklists(id, items:job_checklist_items(is_checked))`).order('scheduled_date', { ascending: true });
-    return (data || []).filter((j: any) => j.stage?.is_field_visible);
+    const { data } = await supabase
+      .from('jobs')
+      .select(`
+        id,
+        name,
+        job_address_street,
+        job_address_city,
+        scheduled_date,
+        scheduled_time_start,
+        photos_required_before,
+        photos_required_after,
+        stage:job_stages(name, color, is_field_visible),
+        customer:customers(name, company),
+        checklists:job_checklists(id, items:job_checklist_items(is_checked))
+      `)
+      .order('scheduled_date', { ascending: true });
+    return data || [];
   });
 
   const handleRefresh = async () => { setRefreshing(true); await mutate(); setRefreshing(false); };
