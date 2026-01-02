@@ -10,7 +10,7 @@ export default function FieldJobsPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: jobs, error, isLoading, mutate } = useSupabaseQuery('field-jobs', async (supabase) => {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from('jobs')
       .select(`
         id,
@@ -26,6 +26,11 @@ export default function FieldJobsPage() {
         checklists:job_checklists(id, items:job_checklist_items(is_checked))
       `)
       .order('scheduled_date', { ascending: true });
+
+    if (queryError) {
+      console.error('Field jobs query error:', queryError);
+    }
+    console.log('Field jobs data:', data);
     return data || [];
   });
 

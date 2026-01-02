@@ -22,7 +22,7 @@ export default function FieldTasksPage() {
   const supabase = createClient();
 
   const { data: tasks, mutate: mutateTasks } = useSupabaseQuery('my-shop-tasks', async (supabase) => {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from('shop_tasks')
       .select(`
         *,
@@ -31,6 +31,11 @@ export default function FieldTasksPage() {
       `)
       .or(`assigned_to.eq.${user?.id},assigned_to.is.null`)
       .order('due_date', { ascending: true, nullsFirst: false });
+
+    if (queryError) {
+      console.error('Shop tasks query error:', queryError);
+    }
+    console.log('Shop tasks data:', data, 'User ID:', user?.id);
     return data || [];
   });
 
