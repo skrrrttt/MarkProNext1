@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Building2, Users, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2 } from 'lucide-react';
+import { Building2, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminSettingsPage() {
@@ -36,7 +36,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_tags').insert({
+    const { error } = await (supabase.from('custom_tags') as any).insert({
       name: formData.get('name') as string,
       color: formData.get('color') as string || '#3b82f6',
       category: 'customer',
@@ -48,7 +48,7 @@ export default function AdminSettingsPage() {
   const handleDeleteTag = async (id: string) => {
     if (!confirm('Delete this tag?')) return;
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_tags').delete().eq('id', id);
+    const { error } = await (supabase.from('custom_tags') as any).delete().eq('id', id);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateTags(); }
   };
 
@@ -57,7 +57,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_flags').insert({
+    const { error } = await (supabase.from('custom_flags') as any).insert({
       name: formData.get('name') as string,
       color: formData.get('color') as string || '#ef4444',
       icon: 'flag',
@@ -69,14 +69,14 @@ export default function AdminSettingsPage() {
   const handleDeleteFlag = async (id: string) => {
     if (!confirm('Delete this flag?')) return;
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('custom_flags').delete().eq('id', id);
+    const { error } = await (supabase.from('custom_flags') as any).delete().eq('id', id);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateFlags(); }
   };
 
   // Stage handlers
   const handleToggleStageVisibility = async (id: string, currentValue: boolean) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('job_stages').update({ is_field_visible: !currentValue }).eq('id', id);
+    const { error } = await (supabase.from('job_stages') as any).update({ is_field_visible: !currentValue }).eq('id', id);
     if (error) toast.error('Failed to update'); else mutateStages();
   };
 
@@ -85,7 +85,7 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('checklist_templates').insert({
+    const { error } = await (supabase.from('checklist_templates') as any).insert({
       name: formData.get('name') as string,
       description: formData.get('description') as string || null,
     });
@@ -97,8 +97,8 @@ export default function AdminSettingsPage() {
     if (!confirm('Delete this checklist template?')) return;
     const supabase = getSupabaseClient();
     // Delete items first
-    await supabase.from('checklist_template_items').delete().eq('template_id', id);
-    const { error } = await supabase.from('checklist_templates').delete().eq('id', id);
+    await (supabase.from('checklist_template_items') as any).delete().eq('template_id', id);
+    const { error } = await (supabase.from('checklist_templates') as any).delete().eq('id', id);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateChecklists(); }
   };
 
@@ -107,8 +107,8 @@ export default function AdminSettingsPage() {
     const supabase = getSupabaseClient();
     const template = checklistTemplates?.find((t: any) => t.id === templateId);
     const sortOrder = template?.items?.length || 0;
-    
-    const { error } = await supabase.from('checklist_template_items').insert({
+
+    const { error } = await (supabase.from('checklist_template_items') as any).insert({
       template_id: templateId,
       name: itemName,
       sort_order: sortOrder,
@@ -119,13 +119,12 @@ export default function AdminSettingsPage() {
 
   const handleDeleteChecklistItem = async (itemId: string) => {
     const supabase = getSupabaseClient();
-    const { error } = await supabase.from('checklist_template_items').delete().eq('id', itemId);
+    const { error } = await (supabase.from('checklist_template_items') as any).delete().eq('id', itemId);
     if (error) toast.error('Failed to delete'); else { mutateChecklists(); }
   };
 
   const tabs = [
     { id: 'company', label: 'Company', icon: Building2 },
-    { id: 'users', label: 'Users & Passwords', icon: Users },
     { id: 'tags', label: 'Tags', icon: Tag },
     { id: 'flags', label: 'Job Flags', icon: Flag },
     { id: 'stages', label: 'Job Stages', icon: ClipboardList },
@@ -161,18 +160,6 @@ export default function AdminSettingsPage() {
                 <div><label className="label">Address</label><input type="text" className="input" placeholder="123 Main St" /></div>
               </div>
               <button className="btn-primary" onClick={() => toast.success('Saved')}><Save className="w-4 h-4" />Save</button>
-            </div>
-          )}
-
-          {activeTab === 'users' && (
-            <div className="space-y-6">
-              <h2 className="text-lg font-semibold text-white">Login Passwords</h2>
-              <p className="text-white/60 text-sm">Simple password auth for your team</p>
-              <div className="space-y-4">
-                <div><label className="label">Admin Password</label><input type="text" className="input" defaultValue="markproadmin" /></div>
-                <div><label className="label">Field Password</label><input type="text" className="input" defaultValue="markpro2025" /></div>
-              </div>
-              <button className="btn-primary" onClick={() => toast.success('Updated')}><Save className="w-4 h-4" />Save</button>
             </div>
           )}
 

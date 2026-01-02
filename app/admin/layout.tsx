@@ -5,13 +5,12 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useUIStore } from '@/lib/store';
 import { useAuth } from '@/lib/auth/AuthProvider';
-import { LayoutDashboard, Briefcase, Users, FileText, Wrench, Settings, Menu, X, LogOut, Truck } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, Wrench, Settings, Menu, X, LogOut, Truck } from 'lucide-react';
 
 const navItems = [
   { href: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/jobs', icon: Briefcase, label: 'Jobs' },
   { href: '/admin/customers', icon: Users, label: 'Customers' },
-  { href: '/admin/invoices', icon: FileText, label: 'Invoices' },
   { href: '/admin/shop', icon: Wrench, label: 'Shop Tasks' },
   { href: '/admin/settings', icon: Settings, label: 'Settings' },
 ];
@@ -83,6 +82,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <header className="h-16 bg-dark-card/50 backdrop-blur border-b border-dark-border flex items-center px-4 sticky top-0 z-30">
           <button onClick={toggleSidebar} className="btn-icon lg:hidden mr-4"><Menu className="w-5 h-5" /></button>
           <div className="flex-1" />
+          <button onClick={signOut} className="btn-icon lg:hidden text-white/60 hover:text-white" title="Sign Out"><LogOut className="w-5 h-5" /></button>
         </header>
         <main className="flex-1 p-6 overflow-auto">{children}</main>
       </div>
