@@ -15,7 +15,7 @@ interface DiagnosticResult {
 export default function DiagnosticPage() {
   const [results, setResults] = useState<DiagnosticResult[]>([]);
   const [loading, setLoading] = useState(false);
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const supabase = createClient();
 
   const runDiagnostics = async () => {
@@ -27,8 +27,8 @@ export default function DiagnosticPage() {
       diagnosticResults.push({
         name: 'User Authentication',
         status: 'success',
-        message: `Logged in as ${user.email}`,
-        details: { id: user.id, role: user.user_role, email: user.email },
+        message: `Logged in as ${user.email || 'unknown'}`,
+        details: { id: user.id, role: role, email: user.email },
       });
     } else {
       diagnosticResults.push({
