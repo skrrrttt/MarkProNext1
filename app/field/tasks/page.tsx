@@ -22,6 +22,15 @@ export default function FieldTasksPage() {
   const supabase = createClient();
 
   const { data: tasks, mutate: mutateTasks } = useSupabaseQuery('my-shop-tasks', async (supabase) => {
+    console.log('=== SHOP TASKS DEBUG ===');
+    console.log('User ID:', user?.id);
+    console.log('User object:', user);
+
+    if (!user?.id) {
+      console.error('No user ID available - user might not be authenticated');
+      return [];
+    }
+
     const { data, error: queryError } = await supabase
       .from('shop_tasks')
       .select(`
@@ -29,13 +38,18 @@ export default function FieldTasksPage() {
         equipment!left(id, name, type),
         assigned_user:user_profiles!assigned_to!left(id, full_name)
       `)
-      .or(`assigned_to.eq.${user?.id},assigned_to.is.null`)
+      .or(`assigned_to.eq.${user.id},assigned_to.is.null`)
       .order('due_date', { ascending: true, nullsFirst: false });
 
     if (queryError) {
       console.error('Shop tasks query error:', queryError);
+      console.error('Error details:', JSON.stringify(queryError, null, 2));
+    } else {
+      console.log('Shop tasks data received:', data);
+      console.log('Number of tasks:', data?.length || 0);
     }
-    console.log('Shop tasks data:', data, 'User ID:', user?.id);
+    console.log('=== END SHOP TASKS DEBUG ===');
+
     return data || [];
   });
 

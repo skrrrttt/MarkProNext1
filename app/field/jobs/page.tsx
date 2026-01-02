@@ -10,6 +10,8 @@ export default function FieldJobsPage() {
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: jobs, error, isLoading, mutate } = useSupabaseQuery('field-jobs', async (supabase) => {
+    console.log('=== FIELD JOBS DEBUG ===');
+
     const { data, error: queryError } = await supabase
       .from('jobs')
       .select(`
@@ -29,8 +31,18 @@ export default function FieldJobsPage() {
 
     if (queryError) {
       console.error('Field jobs query error:', queryError);
+      console.error('Error code:', queryError.code);
+      console.error('Error message:', queryError.message);
+      console.error('Error details:', JSON.stringify(queryError, null, 2));
+    } else {
+      console.log('Field jobs data received:', data);
+      console.log('Number of jobs:', data?.length || 0);
+      if (data && data.length > 0) {
+        console.log('First job:', data[0]);
+      }
     }
-    console.log('Field jobs data:', data);
+    console.log('=== END FIELD JOBS DEBUG ===');
+
     return data || [];
   });
 

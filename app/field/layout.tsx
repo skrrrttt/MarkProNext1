@@ -40,7 +40,12 @@ export default function FieldLayout({ children }: { children: React.ReactNode })
       <header className="sticky top-0 z-40 bg-dark-card/95 backdrop-blur border-b border-dark-border px-4 py-4 pt-safe">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-white">MarkPro</h1>
-          <button onClick={signOut} className="text-white/60 text-sm">Sign Out</button>
+          <div className="flex items-center gap-3">
+            <Link href="/field/diagnostic" className="text-amber-400 text-xs font-medium">
+              Diagnostics
+            </Link>
+            <button onClick={signOut} className="text-white/60 text-sm">Sign Out</button>
+          </div>
         </div>
       </header>
       <main className="px-4 py-6">{children}</main>
