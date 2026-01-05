@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { Truck, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -131,23 +132,11 @@ export default function LoginPage() {
 
           <div className="mt-6 text-center">
             <p className="text-sm text-white/60">
-              Don't have an account?{' '}
-              <button
-                onClick={() => toast.error('Please contact your administrator to create an account')}
-                className="text-brand-500 hover:text-brand-400 font-medium"
-              >
-                Contact Admin
-              </button>
+              Don&apos;t have an account?{' '}
+              <Link href="/signup" className="text-brand-500 hover:text-brand-400 font-medium">
+                Create account
+              </Link>
             </p>
-          </div>
-        </div>
-
-        {/* Demo Credentials */}
-        <div className="mt-4 p-4 bg-dark-card/50 border border-dark-border rounded-lg">
-          <p className="text-xs text-white/40 mb-2">Demo Credentials (for testing):</p>
-          <div className="text-xs text-white/60 space-y-1">
-            <p>Admin: admin@markpro.com / admin123</p>
-            <p>Field: field@markpro.com / field123</p>
           </div>
         </div>
       </div>
