@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { Building2, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2 } from 'lucide-react';
+import { Building2, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 export default function AdminSettingsPage() {
@@ -28,6 +28,11 @@ export default function AdminSettingsPage() {
 
   const { data: checklistTemplates, mutate: mutateChecklists } = useSupabaseQuery('checklist-templates', async (supabase) => {
     const { data } = await supabase.from('checklist_templates').select('*, items:checklist_template_items(*)').order('name');
+    return data || [];
+  });
+
+  const { data: users, mutate: mutateUsers } = useSupabaseQuery('all-users', async (supabase) => {
+    const { data } = await supabase.from('user_profiles').select('*').order('full_name');
     return data || [];
   });
 
@@ -123,8 +128,27 @@ export default function AdminSettingsPage() {
     if (error) toast.error('Failed to delete'); else { mutateChecklists(); }
   };
 
+  // User handlers
+  const handleUpdateUserRole = async (userId: string, newRole: string) => {
+    const supabase = getSupabaseClient();
+    const { error } = await (supabase.from('user_profiles') as any).update({
+      role: newRole,
+      user_role: newRole
+    }).eq('id', userId);
+    if (error) toast.error('Failed to update role');
+    else { toast.success('Role updated'); mutateUsers(); }
+  };
+
+  const handleToggleUserActive = async (userId: string, currentValue: boolean) => {
+    const supabase = getSupabaseClient();
+    const { error } = await (supabase.from('user_profiles') as any).update({ is_active: !currentValue }).eq('id', userId);
+    if (error) toast.error('Failed to update status');
+    else { toast.success('Status updated'); mutateUsers(); }
+  };
+
   const tabs = [
     { id: 'company', label: 'Company', icon: Building2 },
+    { id: 'users', label: 'Users', icon: Users },
     { id: 'tags', label: 'Tags', icon: Tag },
     { id: 'flags', label: 'Job Flags', icon: Flag },
     { id: 'stages', label: 'Job Stages', icon: ClipboardList },
@@ -160,6 +184,58 @@ export default function AdminSettingsPage() {
                 <div><label className="label">Address</label><input type="text" className="input" placeholder="123 Main St" /></div>
               </div>
               <button className="btn-primary" onClick={() => toast.success('Saved')}><Save className="w-4 h-4" />Save</button>
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">Team Members</h2>
+              </div>
+              <p className="text-white/60 text-sm">Manage user roles and access levels</p>
+              <div className="space-y-3">
+                {users?.map((user: { id: string; full_name: string; email: string; role: string; user_role: string; phone: string | null; is_active: boolean }) => (
+                  <div key={user.id} className="flex items-center justify-between p-4 bg-dark-bg rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center">
+                        <span className="text-brand-500 font-semibold">
+                          {user.full_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || '?'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="text-white font-medium">{user.full_name || 'No name'}</p>
+                        <p className="text-white/60 text-sm">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <select
+                        value={user.role || user.user_role || 'field'}
+                        onChange={(e) => handleUpdateUserRole(user.id, e.target.value)}
+                        className="input py-1.5 px-3 text-sm min-w-[120px]"
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="office">Office</option>
+                        <option value="field">Field</option>
+                      </select>
+                      <label className="flex items-center gap-2 text-sm text-white/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={user.is_active !== false}
+                          onChange={() => handleToggleUserActive(user.id, user.is_active !== false)}
+                          className="rounded"
+                        />
+                        Active
+                      </label>
+                    </div>
+                  </div>
+                ))}
+                {(!users || users.length === 0) && (
+                  <div className="text-center py-8 bg-dark-bg rounded-lg">
+                    <Users className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                    <p className="text-white/60">No users found</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
