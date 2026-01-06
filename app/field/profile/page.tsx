@@ -1,17 +1,10 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/store';
+import { useAuth } from '@/lib/auth/AuthProvider';
 import { User, LogOut } from 'lucide-react';
 
 export default function FieldProfilePage() {
-  const router = useRouter();
-  const { logout } = useAuthStore();
-
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  const { signOut } = useAuth();
 
   return (
     <div className="space-y-6">
@@ -23,7 +16,7 @@ export default function FieldProfilePage() {
         <p className="text-white/60">MarkPro Field Team</p>
       </div>
 
-      <button onClick={handleLogout} className="btn-field-secondary w-full">
+      <button onClick={signOut} className="btn-field-secondary w-full">
         <LogOut className="w-5 h-5" />
         Sign Out
       </button>

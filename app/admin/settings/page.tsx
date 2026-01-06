@@ -92,6 +92,15 @@ export default function AdminSettingsPage() {
     if (error) toast.error('Failed to update'); else mutateStages();
   };
 
+  const handleDeleteStage = async (id: string) => {
+    setDeleteLoading(true);
+    const supabase = getSupabaseClient();
+    const { error } = await (supabase.from('job_stages') as any).delete().eq('id', id);
+    setDeleteLoading(false);
+    setDeleteConfirm(null);
+    if (error) toast.error('Failed to delete stage'); else { toast.success('Stage deleted'); mutateStages(); }
+  };
+
   // Checklist handlers
   const handleAddChecklist = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -314,10 +323,19 @@ export default function AdminSettingsPage() {
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color }} />
                       <span className="text-white">{stage.name}</span>
                     </div>
-                    <label className="flex items-center gap-2 text-sm text-white/60 cursor-pointer">
-                      <input type="checkbox" checked={stage.is_field_visible} onChange={() => handleToggleStageVisibility(stage.id, stage.is_field_visible)} className="rounded" />
-                      Field visible
-                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-sm text-white/60 cursor-pointer">
+                        <input type="checkbox" checked={stage.is_field_visible} onChange={() => handleToggleStageVisibility(stage.id, stage.is_field_visible)} className="rounded" />
+                        Field visible
+                      </label>
+                      <button
+                        onClick={() => setDeleteConfirm({ type: 'stage', id: stage.id, name: stage.name })}
+                        className="btn-icon text-white/40 hover:text-red-400"
+                        aria-label={`Delete ${stage.name} stage`}
+                      >
+                        <Trash2 className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -493,6 +511,7 @@ export default function AdminSettingsPage() {
           if (!deleteConfirm) return;
           if (deleteConfirm.type === 'tag') handleDeleteTag(deleteConfirm.id);
           else if (deleteConfirm.type === 'flag') handleDeleteFlag(deleteConfirm.id);
+          else if (deleteConfirm.type === 'stage') handleDeleteStage(deleteConfirm.id);
           else if (deleteConfirm.type === 'checklist') handleDeleteChecklist(deleteConfirm.id);
         }}
         title={`Delete ${deleteConfirm?.type || 'item'}?`}
