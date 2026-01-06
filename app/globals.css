@@ -111,8 +111,8 @@
   
   /* Form inputs */
   .input {
-    @apply w-full bg-dark-bg border border-dark-border rounded-lg 
-           px-4 py-3 text-white placeholder:text-dark-border
+    @apply w-full bg-dark-bg border border-dark-border rounded-lg
+           px-4 py-3 text-white placeholder:text-white/40
            focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500
            transition-colors;
   }
@@ -222,6 +222,96 @@
 /* Loading skeleton */
 .skeleton {
   @apply bg-dark-card animate-pulse rounded;
+}
+
+.skeleton-text {
+  @apply skeleton h-4 rounded;
+}
+
+.skeleton-text-sm {
+  @apply skeleton h-3 rounded;
+}
+
+.skeleton-title {
+  @apply skeleton h-6 rounded;
+}
+
+.skeleton-avatar {
+  @apply skeleton rounded-full;
+}
+
+.skeleton-card {
+  @apply skeleton rounded-card p-4;
+}
+
+.skeleton-button {
+  @apply skeleton h-10 rounded-lg;
+}
+
+/* Content container with max-width */
+.content-container {
+  @apply max-w-7xl mx-auto;
+}
+
+/* Improved card with subtle shadow */
+.card-elevated {
+  @apply card shadow-lg shadow-black/20;
+}
+
+/* Focus trap overlay */
+.focus-trap-overlay {
+  @apply fixed inset-0 bg-black/50 z-50;
+}
+
+/* Confirmation modal */
+.confirmation-modal {
+  @apply fixed inset-0 flex items-center justify-center z-50 p-4;
+}
+
+.confirmation-modal-backdrop {
+  @apply absolute inset-0 bg-black/60;
+}
+
+.confirmation-modal-content {
+  @apply relative bg-dark-card rounded-xl w-full max-w-sm p-6 space-y-4;
+}
+
+/* Breadcrumb */
+.breadcrumb {
+  @apply flex items-center gap-2 text-sm text-white/60;
+}
+
+.breadcrumb-item {
+  @apply hover:text-white transition-colors;
+}
+
+.breadcrumb-separator {
+  @apply text-white/30;
+}
+
+.breadcrumb-current {
+  @apply text-white font-medium;
+}
+
+/* Page transitions */
+.page-enter {
+  animation: pageEnter 0.2s ease-out;
+}
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Improved button states */
+.btn-danger {
+  @apply btn bg-red-500/20 border border-red-500/50 text-red-400 hover:bg-red-500/30;
 }
 
 /* Offline indicator */

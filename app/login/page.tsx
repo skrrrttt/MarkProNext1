@@ -63,12 +63,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-dark-bg flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md page-enter">
         {/* Logo */}
         <div className="flex justify-center mb-8">
           <div className="flex items-center gap-3">
             <div className="w-12 h-12 bg-brand-500 rounded-xl flex items-center justify-center">
-              <Truck className="w-7 h-7 text-black" />
+              <Truck className="w-7 h-7 text-black" aria-hidden="true" />
             </div>
             <span className="text-3xl font-bold text-white">MarkPro</span>
           </div>
@@ -94,20 +94,29 @@ export default function LoginPage() {
                 required
                 autoComplete="email"
                 disabled={loading}
+                aria-describedby="email-hint"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="label">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label htmlFor="password" className="label mb-0">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-brand-500 hover:text-brand-400 font-medium"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 required
                 autoComplete="current-password"
                 disabled={loading}
@@ -121,7 +130,7 @@ export default function LoginPage() {
             >
               {loading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
                   Signing in...
                 </>
               ) : (

@@ -5,11 +5,14 @@ import { useSupabaseQuery } from '@/lib/offline/swr';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { Building2, Tag, Flag, ClipboardList, CreditCard, Save, Plus, Trash2, X, GripVertical, Edit2, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { ConfirmModal } from '@/components/ui';
 
 export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState('company');
   const [showAddModal, setShowAddModal] = useState<string | null>(null);
   const [editingChecklist, setEditingChecklist] = useState<any>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: string; id: string; name: string } | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const { data: tags, mutate: mutateTags } = useSupabaseQuery('all-tags', async (supabase) => {
     const { data } = await supabase.from('custom_tags').select('*').order('name');
@@ -51,9 +54,11 @@ export default function AdminSettingsPage() {
   };
 
   const handleDeleteTag = async (id: string) => {
-    if (!confirm('Delete this tag?')) return;
+    setDeleteLoading(true);
     const supabase = getSupabaseClient();
     const { error } = await (supabase.from('custom_tags') as any).delete().eq('id', id);
+    setDeleteLoading(false);
+    setDeleteConfirm(null);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateTags(); }
   };
 
@@ -72,9 +77,11 @@ export default function AdminSettingsPage() {
   };
 
   const handleDeleteFlag = async (id: string) => {
-    if (!confirm('Delete this flag?')) return;
+    setDeleteLoading(true);
     const supabase = getSupabaseClient();
     const { error } = await (supabase.from('custom_flags') as any).delete().eq('id', id);
+    setDeleteLoading(false);
+    setDeleteConfirm(null);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateFlags(); }
   };
 
@@ -99,11 +106,13 @@ export default function AdminSettingsPage() {
   };
 
   const handleDeleteChecklist = async (id: string) => {
-    if (!confirm('Delete this checklist template?')) return;
+    setDeleteLoading(true);
     const supabase = getSupabaseClient();
     // Delete items first
     await (supabase.from('checklist_template_items') as any).delete().eq('template_id', id);
     const { error } = await (supabase.from('checklist_templates') as any).delete().eq('id', id);
+    setDeleteLoading(false);
+    setDeleteConfirm(null);
     if (error) toast.error('Failed to delete'); else { toast.success('Deleted'); mutateChecklists(); }
   };
 
@@ -252,7 +261,13 @@ export default function AdminSettingsPage() {
                       <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }} />
                       <span className="text-white">{tag.name}</span>
                     </div>
-                    <button onClick={() => handleDeleteTag(tag.id)} className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      onClick={() => setDeleteConfirm({ type: 'tag', id: tag.id, name: tag.name })}
+                      className="btn-icon text-white/40 hover:text-red-400"
+                      aria-label={`Delete ${tag.name} tag`}
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
                   </div>
                 ))}
                 {tags?.filter((t: any) => t.category === 'customer').length === 0 && <p className="text-white/40 text-center py-4">No tags yet</p>}
@@ -274,7 +289,13 @@ export default function AdminSettingsPage() {
                       <Flag className="w-4 h-4" style={{ color: flag.color }} />
                       <span className="text-white">{flag.name}</span>
                     </div>
-                    <button onClick={() => handleDeleteFlag(flag.id)} className="btn-icon text-white/40 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    <button
+                      onClick={() => setDeleteConfirm({ type: 'flag', id: flag.id, name: flag.name })}
+                      className="btn-icon text-white/40 hover:text-red-400"
+                      aria-label={`Delete ${flag.name} flag`}
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
                   </div>
                 ))}
                 {flags?.length === 0 && <p className="text-white/40 text-center py-4">No flags yet</p>}
@@ -325,8 +346,12 @@ export default function AdminSettingsPage() {
                         <button onClick={() => setEditingChecklist(editingChecklist === template.id ? null : template.id)} className="btn-icon text-white/40 hover:text-white">
                           <Edit2 className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDeleteChecklist(template.id)} className="btn-icon text-white/40 hover:text-red-400">
-                          <Trash2 className="w-4 h-4" />
+                        <button
+                          onClick={() => setDeleteConfirm({ type: 'checklist', id: template.id, name: template.name })}
+                          className="btn-icon text-white/40 hover:text-red-400"
+                          aria-label={`Delete ${template.name} checklist`}
+                        >
+                          <Trash2 className="w-4 h-4" aria-hidden="true" />
                         </button>
                       </div>
                     </div>
@@ -404,7 +429,7 @@ export default function AdminSettingsPage() {
           <div className="bg-dark-card rounded-xl w-full max-w-sm">
             <div className="flex items-center justify-between p-4 border-b border-dark-border">
               <h2 className="text-lg font-semibold text-white">Add Tag</h2>
-              <button onClick={() => setShowAddModal(null)} className="btn-icon"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowAddModal(null)} className="btn-icon" aria-label="Close"><X className="w-5 h-5" aria-hidden="true" /></button>
             </div>
             <form onSubmit={handleAddTag} className="p-4 space-y-4">
               <div><label className="label">Tag Name *</label><input type="text" name="name" required className="input" placeholder="e.g. VIP Customer" /></div>
@@ -424,7 +449,7 @@ export default function AdminSettingsPage() {
           <div className="bg-dark-card rounded-xl w-full max-w-sm">
             <div className="flex items-center justify-between p-4 border-b border-dark-border">
               <h2 className="text-lg font-semibold text-white">Add Flag</h2>
-              <button onClick={() => setShowAddModal(null)} className="btn-icon"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowAddModal(null)} className="btn-icon" aria-label="Close"><X className="w-5 h-5" aria-hidden="true" /></button>
             </div>
             <form onSubmit={handleAddFlag} className="p-4 space-y-4">
               <div><label className="label">Flag Name *</label><input type="text" name="name" required className="input" placeholder="e.g. Needs Site Visit" /></div>
@@ -444,7 +469,9 @@ export default function AdminSettingsPage() {
           <div className="bg-dark-card rounded-xl w-full max-w-sm">
             <div className="flex items-center justify-between p-4 border-b border-dark-border">
               <h2 className="text-lg font-semibold text-white">New Checklist</h2>
-              <button onClick={() => setShowAddModal(null)} className="btn-icon"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowAddModal(null)} className="btn-icon" aria-label="Close">
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
             </div>
             <form onSubmit={handleAddChecklist} className="p-4 space-y-4">
               <div><label className="label">Checklist Name *</label><input type="text" name="name" required className="input" placeholder="e.g. Pre-Job Safety Check" /></div>
@@ -457,6 +484,23 @@ export default function AdminSettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={() => {
+          if (!deleteConfirm) return;
+          if (deleteConfirm.type === 'tag') handleDeleteTag(deleteConfirm.id);
+          else if (deleteConfirm.type === 'flag') handleDeleteFlag(deleteConfirm.id);
+          else if (deleteConfirm.type === 'checklist') handleDeleteChecklist(deleteConfirm.id);
+        }}
+        title={`Delete ${deleteConfirm?.type || 'item'}?`}
+        message={`Are you sure you want to delete "${deleteConfirm?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        variant="danger"
+        loading={deleteLoading}
+      />
     </div>
   );
 }

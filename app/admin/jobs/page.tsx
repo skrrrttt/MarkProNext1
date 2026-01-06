@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Plus, Search, Calendar, ChevronRight, RefreshCw, Flag } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { SkeletonGrid } from '@/components/ui';
 
 // Dynamic import for modal - reduces initial bundle size
 const NewJobModal = dynamic(
@@ -24,7 +25,7 @@ export default function AdminJobsPage() {
     return data || [];
   });
 
-  const { data: jobs, mutate } = useSupabaseQuery('admin-jobs', async (supabase) => {
+  const { data: jobs, mutate, isLoading } = useSupabaseQuery('admin-jobs', async (supabase) => {
     const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
     return data || [];
   });
@@ -87,64 +88,79 @@ export default function AdminJobsPage() {
           <p className="text-white/60 mt-1">{jobs?.length || 0} total jobs</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => mutate()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
-          <button onClick={() => setShowNewJobModal(true)} className="btn-primary"><Plus className="w-4 h-4" />New Job</button>
+          <button onClick={() => mutate()} className="btn-secondary" aria-label="Refresh jobs">
+            <RefreshCw className="w-4 h-4" aria-hidden="true" />
+          </button>
+          <button onClick={() => setShowNewJobModal(true)} className="btn-primary">
+            <Plus className="w-4 h-4" aria-hidden="true" />New Job
+          </button>
         </div>
       </div>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-        <input type="text" placeholder="Search jobs..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="input pl-10 w-full" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" aria-hidden="true" />
+        <input
+          type="text"
+          placeholder="Search jobs..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="input pl-10 w-full"
+          aria-label="Search jobs"
+        />
       </div>
 
       {/* Jobs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredJobs.map((job: any) => {
-          const stage = getStage(job.stage_id);
-          const customer = getCustomer(job.customer_id);
-          const flags = getJobFlags(job.id);
-          return (
-            <Link key={job.id} href={`/admin/jobs/${job.id}`} className="card p-4 hover:bg-dark-card-hover transition-colors">
-              {/* Flags */}
-              {flags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {flags.map((f: any) => f.flag && (
-                    <span key={f.id} className="tag text-xs" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
-                      <Flag className="w-3 h-3" />{f.flag.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-              
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-white line-clamp-2">{job.name}</h3>
-                <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" />
-              </div>
-              
-              <p className="text-sm text-white/60 mb-3">{customer?.company || customer?.name || 'No customer'}</p>
-              
-              <div className="flex items-center justify-between">
-                {stage ? (
-                  <span className="badge text-xs" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>{stage.name}</span>
-                ) : (
-                  <span className="badge text-xs bg-white/10 text-white/40">No stage</span>
+      {isLoading ? (
+        <SkeletonGrid count={6} type="job" />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredJobs.map((job: any) => {
+            const stage = getStage(job.stage_id);
+            const customer = getCustomer(job.customer_id);
+            const flags = getJobFlags(job.id);
+            return (
+              <Link key={job.id} href={`/admin/jobs/${job.id}`} className="card p-4 hover:bg-dark-card-hover transition-colors">
+                {/* Flags */}
+                {flags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {flags.map((f: any) => f.flag && (
+                      <span key={f.id} className="tag text-xs" style={{ backgroundColor: `${f.flag.color}20`, color: f.flag.color }}>
+                        <Flag className="w-3 h-3" aria-hidden="true" />{f.flag.name}
+                      </span>
+                    ))}
+                  </div>
                 )}
-                
-                <div className="flex items-center gap-2 text-xs text-white/40">
-                  {job.scheduled_date && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />{format(new Date(job.scheduled_date), 'MMM d')}
-                    </span>
-                  )}
-                  {job.quote_amount && <span className="text-green-400">${job.quote_amount.toLocaleString()}</span>}
+
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="font-semibold text-white line-clamp-2">{job.name}</h3>
+                  <ChevronRight className="w-5 h-5 text-white/30 flex-shrink-0" aria-hidden="true" />
                 </div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-      
-      {filteredJobs.length === 0 && (
+
+                <p className="text-sm text-white/60 mb-3">{customer?.company || customer?.name || 'No customer'}</p>
+
+                <div className="flex items-center justify-between">
+                  {stage ? (
+                    <span className="badge text-xs" style={{ backgroundColor: `${stage.color}20`, color: stage.color }}>{stage.name}</span>
+                  ) : (
+                    <span className="badge text-xs bg-white/10 text-white/40">No stage</span>
+                  )}
+
+                  <div className="flex items-center gap-2 text-xs text-white/40">
+                    {job.scheduled_date && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" aria-hidden="true" />{format(new Date(job.scheduled_date), 'MMM d')}
+                      </span>
+                    )}
+                    {job.quote_amount && <span className="text-green-400">${job.quote_amount.toLocaleString()}</span>}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {!isLoading && filteredJobs.length === 0 && (
         <div className="text-center py-12 text-white/40">No jobs found</div>
       )}
 

@@ -4,14 +4,15 @@ import { useSupabaseQuery } from '@/lib/offline/swr';
 import { Briefcase, Users, TrendingUp, Calendar, CheckCircle2, Flag } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { SkeletonDashboard } from '@/components/ui';
 
 export default function AdminDashboardPage() {
-  const { data: jobs } = useSupabaseQuery('dashboard-jobs', async (supabase) => {
+  const { data: jobs, isLoading: jobsLoading } = useSupabaseQuery('dashboard-jobs', async (supabase) => {
     const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false }).limit(10);
     return data || [];
   });
 
-  const { data: customers } = useSupabaseQuery('dashboard-customers', async (supabase) => {
+  const { data: customers, isLoading: customersLoading } = useSupabaseQuery('dashboard-customers', async (supabase) => {
     const { data } = await supabase.from('customers').select('id');
     return data || [];
   });
@@ -32,10 +33,16 @@ export default function AdminDashboardPage() {
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayJobs = jobs?.filter((j: any) => j.scheduled_date === today) || [];
 
+  const isLoading = jobsLoading || customersLoading;
+
   const statCards = [
     { label: 'Total Jobs', value: jobs?.length || 0, icon: Briefcase, color: 'text-blue-400', bg: 'bg-blue-500/10' },
     { label: 'Customers', value: customers?.length || 0, icon: Users, color: 'text-green-400', bg: 'bg-green-500/10' },
   ];
+
+  if (isLoading) {
+    return <SkeletonDashboard />;
+  }
 
   return (
     <div className="space-y-8">

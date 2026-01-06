@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useUIStore } from '@/lib/store';
 import { onNetworkChange, syncPendingChanges, getDB } from '@/lib/offline/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
@@ -8,6 +8,12 @@ import { AuthProvider } from '@/lib/auth/AuthProvider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const { setOnline, setSyncStatus, isOnline } = useUIStore();
+  const [mounted, setMounted] = useState(false);
+
+  // Mark as mounted after hydration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Initialize IndexedDB
   useEffect(() => {
@@ -18,13 +24,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const cleanup = onNetworkChange((online) => {
       setOnline(online);
-      
+
       // Auto-sync when coming back online
       if (online) {
         setSyncStatus('syncing');
         const supabase = getSupabaseClient();
         syncPendingChanges(supabase)
-          .then(({ success, failed }) => {
+          .then(({ failed }) => {
             if (failed > 0) {
               setSyncStatus('error');
             } else {
@@ -49,8 +55,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthProvider>
-      {/* Offline indicator */}
-      {!isOnline && (
+      {/* Offline indicator - only render after hydration to avoid mismatch */}
+      {mounted && !isOnline && (
         <div className="offline-banner">
           You&apos;re offline — changes will sync when connected
         </div>

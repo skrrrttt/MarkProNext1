@@ -6,13 +6,14 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { Plus, Search, Phone, Mail, MapPin, Building2, ChevronRight, X, Tag, Filter } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { SkeletonGrid } from '@/components/ui';
 
 export default function AdminCustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewCustomerModal, setShowNewCustomerModal] = useState(false);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
 
-  const { data: customers, mutate } = useSupabaseQuery('admin-customers', async (supabase) => {
+  const { data: customers, mutate, isLoading } = useSupabaseQuery('admin-customers', async (supabase) => {
     const { data, error } = await supabase
       .from('customers')
       .select('*')
@@ -146,17 +147,16 @@ export default function AdminCustomersPage() {
         )}
       </div>
       
-      {!customers && <div className="text-center py-12 text-white/60">Loading...</div>}
-      
-      {customers && filteredCustomers.length === 0 && (
+      {isLoading ? (
+        <SkeletonGrid count={6} type="customer" />
+      ) : filteredCustomers.length === 0 ? (
         <div className="card p-12 text-center">
-          <Building2 className="w-16 h-16 text-white/20 mx-auto mb-4" />
+          <Building2 className="w-16 h-16 text-white/20 mx-auto mb-4" aria-hidden="true" />
           <h3 className="text-lg font-semibold text-white mb-2">No customers found</h3>
         </div>
-      )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredCustomers.map((customer: any) => (
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredCustomers.map((customer: any) => (
           <Link key={customer.id} href={`/admin/customers/${customer.id}`} className="card p-5 hover:bg-dark-card-hover transition-colors">
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -192,15 +192,16 @@ export default function AdminCustomersPage() {
               )}
             </div>
           </Link>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {showNewCustomerModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => e.target === e.currentTarget && setShowNewCustomerModal(false)}>
           <div className="bg-dark-card rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-4 border-b border-dark-border sticky top-0 bg-dark-card">
               <h2 className="text-lg font-semibold text-white">New Customer</h2>
-              <button onClick={() => setShowNewCustomerModal(false)} className="btn-icon"><X className="w-5 h-5" /></button>
+              <button onClick={() => setShowNewCustomerModal(false)} className="btn-icon" aria-label="Close"><X className="w-5 h-5" aria-hidden="true" /></button>
             </div>
             <form onSubmit={handleCreateCustomer} className="p-4 space-y-4">
               <div><label className="label">Contact Name *</label><input type="text" name="name" required className="input" placeholder="John Smith" /></div>
